@@ -1,0 +1,7 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Prize Display HMI
+Comment=IconTest Link
+Exec=/home/cathy/Prize-Display-HMI/hmi_start.sh
+Type=Application
+Categories=Application;Development;
