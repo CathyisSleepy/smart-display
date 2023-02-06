@@ -11,10 +11,9 @@
 // Define the acceleration limit to be used for each move
 int32_t accelerationLimit = 100000; // pulses per sec^2
 
-// Declares our user-defined helper function, which is used to command moves to
-// the motor. The definition/implementation of this function is at the  bottom
-// of the example
+// Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
+void InitializeMotor();
 
 #define fwdButton ConnectorIO0
 #define revButton ConnectorIO1
@@ -26,12 +25,17 @@ bool MoveAtVelocity(int32_t velocity);
 
 bool fwd = true;
 
-bool running = true;
+bool running = false;
+bool faulted = false; 
 int motor_speed;
-int wait_time  = 2000;
+int wait_time  = 5000;
+int press_hold_time = 5000;
+int stop_hold_time = 10000;
 int timer_start;
+int press_timer_start;
 bool fwdState_past;
 bool revState_past;
+bool stopState_past;
 
 int main(void) 
 {
@@ -49,33 +53,7 @@ int main(void)
 	
 	//=======================================
 	
-	// Sets the input clocking rate. This normal rate is ideal for ClearPath
-	// step and direction applications.
-	MotorMgr.MotorInputClocking(MotorManager::CLOCK_RATE_NORMAL);
-
-	// Sets all motor connectors into step and direction mode.
-	MotorMgr.MotorModeSet(MotorManager::MOTOR_ALL,
-	Connector::CPM_MODE_STEP_AND_DIR);
-
-	// Set the motor's HLFB mode to bipolar PWM
-	motor.HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
-	// Set the HFLB carrier frequency to 482 Hz
-	motor.HlfbCarrier(MotorDriver::HLFB_CARRIER_482_HZ);
-
-	// Set the maximum acceleration for each move
-	motor.AccelMax(accelerationLimit);
-
-	// Enables the motor; homing will begin automatically if enabled
-	motor.EnableRequest(true);
-	ConnectorUsb.SendLine("Motor Enabled");
-
-	// Waits for HLFB to assert (waits for homing to complete if applicable)
-	ConnectorUsb.SendLine("Waiting for HLFB...");
-	while (motor.HlfbState() != MotorDriver::HLFB_ASSERTED) 
-	{
-		continue;
-	}
-	ConnectorUsb.SendLine("Motor Ready");
+	InitializeMotor();
 	
 	//=====================================
 	
@@ -132,9 +110,48 @@ int main(void)
 	   fwdState = fwdButton.State();
 	   revState = revButton.State();
 	   stopState = stopButton.State();
-
+	   uint32_t current_time = Milliseconds();
+	   uint32_t timer_count = current_time - timer_start;
+	   uint32_t press_timer_count = current_time - press_timer_start;
 	   
-	   if (fwdState) 
+	   if (!running)
+	   {
+		   if (faulted)
+		   {
+			   fwdLight.State(false);
+			   
+			   if(!stopLight.State() && 1000 <= timer_count)
+			   {
+				   timer_start = Milliseconds();
+				   stopLight.State(true);
+				   revLight.State(true);
+			   }
+			   else if(stopLight.State() && 1000 <= timer_count)
+			   {
+				   stopLight.State(false);
+				   revLight.State(false);
+				   timer_start = Milliseconds();
+			   }
+		   }
+		   else
+		   {
+		        revLight.State(false);
+				fwdLight.State(false);
+			 
+				if(!stopLight.State() && 1000 <= timer_count)
+				{
+					timer_start = Milliseconds();
+					stopLight.State(true);
+				}
+				else if(stopLight.State() && 1000 <= timer_count)
+				{
+					stopLight.State(false);
+					timer_start = Milliseconds();
+				}  
+		   }
+	   }
+
+	   if (fwdState && running) 
 	   {
           stopLight.State(false);
           revLight.State(false);
@@ -148,24 +165,40 @@ int main(void)
 			  MoveAtVelocity(motor_speed);
 		  }
 		  
-		  if (fwdState_past)
+		  if (fwdState_past && press_hold_time <= press_timer_count)
 		  {
 			  MoveAtVelocity(motor_speed * 1.4);
 		  }
+		  
+		  if (!fwdState_past)
+		  {
+			  press_timer_start = Milliseconds();
+		  }
 	   }
 	   
-	   else if (revState)
+	   else if (revState && running)
 	   {
 		    stopLight.State(false);
 		    revLight.State(true);
 		    fwdLight.State(false);
 		    fwd = false;
+			
 		    if (motor_speed > 0)
 		    {
 			    motor_speed = motor_speed * -1;
-				MoveAtVelocity(motor_speed);
 		    }
 			
+		    if (revState_past && press_hold_time <= press_timer_count)
+		    {
+			    MoveAtVelocity(motor_speed * 1.4);
+	  	    }
+		  
+		    if (!revState_past)
+		    {
+			    press_timer_start = Milliseconds();
+		    }
+			
+			MoveAtVelocity(motor_speed);
 			timer_start = Milliseconds();
 	   }
 	   
@@ -176,12 +209,21 @@ int main(void)
 		   fwdLight.State(false);
 		   MoveAtVelocity(0);
 		   
+		   if (stopState_past && stop_hold_time <= press_timer_count)
+		   {
+				MoveAtVelocity(0);
+				running = 0;
+		   }
+		   		  
+		   if (!stopState_past)
+		   {
+			    press_timer_start = Milliseconds();
+		   }
+		   
 		   timer_start = Milliseconds();
 	   }
 	   
-	   uint32_t current_time = Milliseconds();
-	   uint32_t timer_count = timer_start - current_time;
-	   if (timer_count >= wait_time)
+	   if (timer_count >= wait_time && running)
 	   {
 		   fwd = true;
 		   if (motor_speed < 0)
@@ -189,6 +231,9 @@ int main(void)
 			   motor_speed = motor_speed * -1;
 		   }
 		   
+		   stopLight.State(false);
+		   revLight.State(false);
+		   fwdLight.State(true);
 		   MoveAtVelocity(motor_speed);
 	   }
 	   
@@ -196,124 +241,168 @@ int main(void)
 	   EthernetTcpClient client = server.Available();
 	   if (client.Connected()) 
 	   {
-				   ConnectorUsb.SendLine("a client connected");
-				   // The server has returned a connected client with incoming data available.
-				   bool recv_in_prog = false;
-				   int idex = 0;
-				   int bin_select;
-				   uint16_t data_in;
+			ConnectorUsb.SendLine("a client connected");
+			// The server has returned a connected client with incoming data available.
+			bool recv_in_prog = false;
+			int idex = 0;
+			int bin_select;
+			uint16_t data_in;
 						   
-				   while (client.BytesAvailable() > 0)
-				   {
-					   // Send the data received from the client over a serial port.
-					   data_in = client.Read();
-					   ConnectorUsb.SendLine(data_in);
-					   if (data_in == 60 && !recv_in_prog)
-					   {
-						   recv_in_prog = true;
-						   idex = 1;
-						   ConnectorUsb.SendLine("Parse start");
-					   }
+			while (client.BytesAvailable() > 0)
+			{
+				// Send the data received from the client over a serial port.
+				data_in = client.Read();
+				ConnectorUsb.SendLine(data_in);
+				if (data_in == 60 && !recv_in_prog)
+				{
+					recv_in_prog = true;
+					idex = 1;
+					ConnectorUsb.SendLine("Parse start");
+				}
 							   
-					   else if (data_in == 62 && recv_in_prog && idex > 2)
-					   {
-						   recv_in_prog = false;
-						   ConnectorUsb.SendLine("Parse stop");
-					   }
+				else if (data_in == 62 && recv_in_prog && idex > 2)
+				{
+					recv_in_prog = false;
+					ConnectorUsb.SendLine("Parse stop");
+				}
 							   
-					   else if (idex == 1 && recv_in_prog)
-					   {
-						   switch (data_in)
-						   {
-							   case 109: //m -> motor speed set
-							   bin_select = 1; //bin = motor_speed
-							   break;
+				else if (idex == 1 && recv_in_prog)
+				{
+					switch (data_in)
+					{
+						case 109: //m -> motor speed set
+						bin_select = 1; //bin = motor_speed
+						break;
 									   
-							   case 108: //l -> main loop on/off
-							   bin_select = 2;
+						case 108: //l -> main loop on/off
+						bin_select = 2;
+						break;
 							   
-							   case 119: //w -> wait timer set
-							   bin_select = 3;
+						case 119: //w -> wait timer set
+						bin_select = 3;
+					    break;
 								   
-							   default:
-							   //invalid tag so exit and look for next
-							   bin_select = 0;
-							   idex = 0;
-							   recv_in_prog = 0;
-							   break;
-						   }
-						   idex++;
-					   }
+						default:
+						//invalid tag so exit and look for next
+						bin_select = 0;
+						idex = 0;
+						recv_in_prog = 0;
+						break;
+					}
+					idex++;
+				}
 						   
-					   else if (idex == 2 && recv_in_prog && bin_select != 0)
-					   {
-						   switch (bin_select)
-						   {
-							   case 1: //motor speed
-							   motor_speed = data_in * 25;
-							   if (!fwd)
-							   {
-								   motor_speed = motor_speed * -1;
-							   }
-							   ConnectorUsb.SendLine(motor_speed);
-							   break;
+				else if (idex == 2 && recv_in_prog && bin_select != 0)
+				{
+					switch (bin_select)
+					{
+						case 1: //motor speed
+						motor_speed = data_in * 25;
+						if (!fwd)
+						{
+							motor_speed = motor_speed * -1;
+						}
+						ConnectorUsb.SendLine(motor_speed);
+						if(running)
+						{
+							MoveAtVelocity(motor_speed);
+						}
+						break;
 									   
-							   case 2: //start/stop motor
-							   running = data_in;
-							   if (data_in)
-							   {
-								   if (fwd)
-								   {
-									   stopLight.State(false);
-									   revLight.State(false);
-									   fwdLight.State(true);
-								   }
-								   else
-								   {
-									   stopLight.State(false);
-									   revLight.State(true);
-									   fwdLight.State(false);
-								   }
-								   MoveAtVelocity(motor_speed);
-							   }
-							   else
-							   {
-								   MoveAtVelocity(0);
-								   stopLight.State(true);
-								   revLight.State(false);
-								   fwdLight.State(false);
-							   }
-							   break;
+						case 2: //start/stop motor
+						running = data_in;
+						if (running)
+						{
+							if (fwd)
+							{
+								stopLight.State(false);
+								revLight.State(false);
+								fwdLight.State(true);
+							}
+							else
+							{
+								stopLight.State(false);
+								revLight.State(true);
+								fwdLight.State(false);
+							}
+							faulted = false;
+							motor.ClearAlerts();
+							motor.EnableRequest(true);
+							MoveAtVelocity(motor_speed);
+						}
+						else
+						{
+							MoveAtVelocity(0);
+							stopLight.State(true);
+							revLight.State(false);
+							fwdLight.State(false);
+						}
+						break;
 							   
-							   case 3: //set wait_time
-							   wait_time = data_in * 100;
-							   break;
-							   
-							   
-							   default:
-							   //invalid tag so exit and look for next
-							   idex = 0;
-							   recv_in_prog = false;
-							   break;
-						   }
-						   idex++;
-					   }
-					   EthernetMgr.Refresh();					   
-				  }
+						case 3: //set wait_time
+						wait_time = data_in * 100;
+						break;
+							   	   
+						default:
+						//invalid tag so exit and look for next
+						idex = 0;
+						recv_in_prog = false;
+						break;
+					}
+					idex++;
+				}
+				EthernetMgr.Refresh();					   
+			}
 	   } 
 	   fwdState_past = fwdState;
-	   revState_past = revState;    
+	   revState_past = revState;
+	   stopState_past = stopState;    
    }
 }
 
 
+void InitializeMotor()
+{
+		// Sets the input clocking rate. This normal rate is ideal for ClearPath
+		// step and direction applications.
+		MotorMgr.MotorInputClocking(MotorManager::CLOCK_RATE_NORMAL);
+
+		// Sets all motor connectors into step and direction mode.
+		MotorMgr.MotorModeSet(MotorManager::MOTOR_ALL,
+		Connector::CPM_MODE_STEP_AND_DIR);
+
+		// Set the motor's HLFB mode to bipolar PWM
+		motor.HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
+		// Set the HFLB carrier frequency to 482 Hz
+		motor.HlfbCarrier(MotorDriver::HLFB_CARRIER_482_HZ);
+
+		// Set the maximum acceleration for each move
+		motor.AccelMax(accelerationLimit);
+
+		// Enables the motor; homing will begin automatically if enabled
+		motor.EnableRequest(true);
+		ConnectorUsb.SendLine("Motor Enabled");
+
+		// Waits for HLFB to assert (waits for homing to complete if applicable)
+		ConnectorUsb.SendLine("Waiting for HLFB...");
+		while (motor.HlfbState() != MotorDriver::HLFB_ASSERTED)
+		{
+			continue;
+		}
+		ConnectorUsb.SendLine("Motor Ready");
+		
+		return;
+}
 
 
-
-bool MoveAtVelocity(int32_t velocity) {
+bool MoveAtVelocity(int32_t velocity) 
+{
 	// Check if an alert is currently preventing motion
-	if (motor.StatusReg().bit.AlertsPresent) {
+	if (motor.StatusReg().bit.AlertsPresent || !motor.StatusReg().bit.Enabled) 
+	{
 		ConnectorUsb.SendLine("Motor status: 'In Alert'. Move Canceled.");
+		running = false;
+		faulted = true;
 		return false;
 	}
 
