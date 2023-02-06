@@ -1,3 +1,4 @@
+
 //import libraries
 import QtQuick 2.8
 import QtQuick.Controls 2.1
@@ -9,6 +10,23 @@ Item {
     width: 1280
     height: 720
 
+    Text {
+        id: speed_lable
+        x: 500
+        y: 200
+        text: "Adjust Motor Speed" 
+        font.pixelSize: 45
+    }
+    
+    Text {
+        id: speed
+        x: 500
+        y: 255
+        visible: true
+        text: "0"
+        font.pixelSize: 45
+    }
+
     Slider {
         id: motor_slider
         x: 450
@@ -18,10 +36,9 @@ Item {
         scale: 1.7
         stepSize: 1
         to: 255
-        value: Number(_Setting.motorSpeedGet())
-
+        value: 1
         onValueChanged:
-        {
+        { 
             _Setting.motorSpeedSet(value)
         }
     }
@@ -56,26 +73,7 @@ Item {
         }
     }
 
-    Button {
-        id: close
-        x: 1200
-        y: 0
-        width: 80
-        height: 31
-        palette.button: "red"
-        palette.buttonText: "white"
-        text: "X"
-        onClicked:
-        {
-            _Setting.closeWindow()
-        }
-    } 
-
-    Text {
-        id: speedText
-        x: 500
-        y: 200
-        text: "Adjust Motor Speed"
-        font.pixelSize: 45
+    function textset() {
+        hmiControl.speed.text = "500";
     }
 }

@@ -2,11 +2,17 @@
 import sys
 import os
 import socket
-from PySide2.QtCore import *
+
+from PySide2.QtGui import QGuiApplication
+from PySide2.QtQml import QQmlApplicationEngine
+from PySide2.QtCore import QTimer, QObject, QThread, Signal, Slot
 
 HOST = '169.254.207.250'    # The remote host
 PORT = 8888              # The same port as used by the server
-s = None
+eth_fault = 0
+sock = None
+motor_speed = 1
+
 for res in socket.getaddrinfo(HOST, PORT, socket.AF_UNSPEC, socket.SOCK_STREAM):
     af, socktype, proto, canonname, sa = res
     try:
@@ -27,7 +33,6 @@ for res in socket.getaddrinfo(HOST, PORT, socket.AF_UNSPEC, socket.SOCK_STREAM):
 
 # class to handle button controls
 class Setting(QObject):
-    motor_speed = 100
 
     #ask politely for motor_speed from clearcore
     @Slot(result=int)
@@ -54,3 +59,14 @@ class Setting(QObject):
     @Slot()
     def closeWindow(self):
         sys.exit()
+
+class Streaming(QThread):
+    MotorSignal = Signal(int)
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        while True:
+            self.MotorSignal.emit(int(motor_speed))
+            self.sleep(1)
