@@ -17,5 +17,4 @@ ApplicationWindow {
         id: stackview
         initialItem: iniITEM
     }
-    
 }
