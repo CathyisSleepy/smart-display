@@ -9,11 +9,12 @@
 #define motor ConnectorM0
 
 // Define the acceleration limit to be used for each move
-int32_t accelerationLimit = 100000; // pulses per sec^2
+int32_t accelerationLimit = 600; // pulses per sec^2
 
 // Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
 void InitializeMotor();
+void Estopped();
 
 #define fwdButton ConnectorIO0
 #define revButton ConnectorIO1
@@ -28,11 +29,11 @@ bool fwd = true;
 bool running = false;
 bool faulted = false; 
 int motor_speed;
-int wait_time  = 5000;
-int press_hold_time = 5000;
-int stop_hold_time = 10000;
-int timer_start;
-int press_timer_start;
+uint32_t wait_time  = 5000;
+uint32_t press_hold_time = 5000;
+uint32_t stop_hold_time = 10000;
+uint32_t timer_start;
+uint32_t press_timer_start;
 bool fwdState_past;
 bool revState_past;
 bool stopState_past;
@@ -60,14 +61,14 @@ int main(void)
 	while (!EthernetMgr.PhyLinkActive()) 
 	{
 		  ConnectorUsb.SendLine("The Ethernet cable is unplugged...");
-		  Delay_ms(1000);
+		  Delay_ms(10);
 	}
 
 	// Specify the desired network values:
 	// ClearCore IP address
-	IpAddress ip = IpAddress(169, 254, 207, 250);
+	IpAddress ip = IpAddress(192, 168, 250, 250);
 	// Router/switch IP address
-	IpAddress gateway = IpAddress(169, 254, 207, 1);
+	IpAddress gateway = IpAddress(192, 168, 250, 1);
 	// Mask to separate network vs. host addresses (required for TCP)
 	IpAddress netmask = IpAddress(255, 255, 0, 0);
 	// Set the network values through the EthernetManager.
@@ -113,9 +114,53 @@ int main(void)
 	   uint32_t current_time = Milliseconds();
 	   uint32_t timer_count = current_time - timer_start;
 	   uint32_t press_timer_count = current_time - press_timer_start;
+	   // Obtain a reference to a connected client with incoming data available.
+	   EthernetTcpClient client = server.Available();
+	   
+	   while(motor.StatusReg().bit.InEStopSensor)
+	   {
+		   running = false;
+		   EthernetMgr.Refresh();
+		   motor.EnableRequest(false);
+		   uint32_t current_time = Milliseconds();
+		   uint32_t timer_count = current_time - timer_start;
+		   
+		   EthernetTcpClient client = server.Available();
+		   
+		   if(!stopLight.State() && 1000 <= timer_count)
+		   {
+			   timer_start = Milliseconds();
+			   stopLight.State(true);
+			   revLight.State(true);
+			   fwdLight.State(true);
+		   }
+		   else if(stopLight.State() && 1000 <= timer_count)
+		   {
+			   stopLight.State(false);
+			   revLight.State(false);
+			   fwdLight.State(false);
+			   timer_start = Milliseconds();
+		   }
+		   
+		   client.Send("|estop,1|");
+	   }
+	   
+	   if(faulted)
+	   {
+		   running = false;
+		   client.Send("|fault,1|");
+		   client.Send("|run, 0|");
+	   }
+	   
+	   if (!EthernetMgr.PhyLinkActive())
+	   {
+		   faulted = true;
+		   running = false;
+	   }
 	   
 	   if (!running)
 	   {
+		   client.Send("|run,0|");
 		   if (faulted)
 		   {
 			   fwdLight.State(false);
@@ -237,15 +282,13 @@ int main(void)
 		   MoveAtVelocity(motor_speed);
 	   }
 	   
-	   // Obtain a reference to a connected client with incoming data available.
-	   EthernetTcpClient client = server.Available();
 	   if (client.Connected()) 
 	   {
 			ConnectorUsb.SendLine("a client connected");
 			// The server has returned a connected client with incoming data available.
 			bool recv_in_prog = false;
 			int idex = 0;
-			int bin_select;
+			uint16_t bin_select;
 			uint16_t data_in;
 						   
 			while (client.BytesAvailable() > 0)
@@ -275,12 +318,16 @@ int main(void)
 						break;
 									   
 						case 108: //l -> main loop on/off
-						bin_select = 2;
+						bin_select = 2; //bin = on/off
 						break;
 							   
 						case 119: //w -> wait timer set
-						bin_select = 3;
+						bin_select = 3; //bin = timer set
 					    break;
+						
+						case 114: //r -> reset
+						bin_select = 4; //bin = reset
+						break;
 								   
 						default:
 						//invalid tag so exit and look for next
@@ -297,20 +344,34 @@ int main(void)
 					switch (bin_select)
 					{
 						case 1: //motor speed
-						motor_speed = data_in * 25;
+						if (0 <= data_in && data_in <= 255)
+						{
+							float x = data_in / 255;
+							uint32_t result = 500 + (16200 - 500) * x;
+							if (result <= 16200 && result >= 0)
+							{
+								motor_speed = result;
+							}
+						}
+						
 						if (!fwd)
 						{
 							motor_speed = motor_speed * -1;
 						}
 						ConnectorUsb.SendLine(motor_speed);
-						if(running)
+						if(running && !faulted)
 						{
 							MoveAtVelocity(motor_speed);
 						}
 						break;
 									   
 						case 2: //start/stop motor
-						running = data_in;
+						
+						if ((data_in == 1 || data_in == 0) && !faulted)
+						{
+							running = data_in;
+						}
+						
 						if (running)
 						{
 							if (fwd)
@@ -325,13 +386,11 @@ int main(void)
 								revLight.State(true);
 								fwdLight.State(false);
 							}
-							faulted = false;
-							motor.ClearAlerts();
-							motor.EnableRequest(true);
 							MoveAtVelocity(motor_speed);
 						}
 						else
 						{
+							//stop the motor and light up the stop button
 							MoveAtVelocity(0);
 							stopLight.State(true);
 							revLight.State(false);
@@ -340,7 +399,24 @@ int main(void)
 						break;
 							   
 						case 3: //set wait_time
-						wait_time = data_in * 100;
+						//map 1 byte on 2s to 30s (2000ms to 3000ms)
+						float x  = data_in / 255;
+						uint32_t result = 2000 + (30000 - 2000) * x;
+						//if the result is valid
+						if (result >= 2000 && result <= 30000)
+						{
+							//set the time until the machine reverts back to default foward state
+							wait_time = result;
+						}	
+						break;
+						
+						case 4: //reset faults
+						if (faulted)
+						{
+							faulted = false;
+							motor.ClearAlerts();
+							motor.EnableRequest(true);
+						}
 						break;
 							   	   
 						default:
@@ -356,7 +432,12 @@ int main(void)
 	   } 
 	   fwdState_past = fwdState;
 	   revState_past = revState;
-	   stopState_past = stopState;    
+	   stopState_past = stopState;
+	   client.Send("|estop,0|");
+	   if (running)
+	   {
+		   client.Send("|run,1|fault,0|");
+	   }
    }
 }
 
@@ -389,6 +470,10 @@ void InitializeMotor()
 		{
 			continue;
 		}
+		while (!motor.EStopConnector(CLEARCORE_PIN_DI6))
+		{
+			continue;
+		}
 		ConnectorUsb.SendLine("Motor Ready");
 		
 		return;
@@ -398,7 +483,7 @@ void InitializeMotor()
 bool MoveAtVelocity(int32_t velocity) 
 {
 	// Check if an alert is currently preventing motion
-	if (motor.StatusReg().bit.AlertsPresent || !motor.StatusReg().bit.Enabled) 
+	if (motor.StatusReg().bit.AlertsPresent || !motor.StatusReg().bit.Enabled || motor.StatusReg().bit.InEStopSensor) 
 	{
 		ConnectorUsb.SendLine("Motor status: 'In Alert'. Move Canceled.");
 		running = false;
