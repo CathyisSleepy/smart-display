@@ -18,7 +18,7 @@ HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
 PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
 '''
 
-HOST = '192.168.250.250'    # The remote host
+HOST = '169.254.207.250'    # The remote host
 PORT = 8888              # The same port as used by the server
 
 class EthHandler():
@@ -87,11 +87,11 @@ class Setting(QObject):
     def ccReset(self):
         if EthHandler.eth_fault:
             EthHandler.sock = EthHandler.attemptEthConnect()
-            if EthHandler.sock is not None:
-                EthHandler.eth_fault = 0
-                EthHandler.sock.send(b'<r' + b'>')
-            else:
-                EthHandler.eth_fault = 1
+        if EthHandler.sock is not None:
+            EthHandler.eth_fault = 0
+            EthHandler.sock.send(b'<r' + b'>')
+        else:
+            EthHandler.eth_fault = 1
 
     # close
     @Slot()
@@ -120,10 +120,13 @@ class Streaming(QThread):
     def run(self):
         data = None
         while True:
-            if EthHandler.sock is not None:
-                EthHandler.eth_fault = 0
-                data = EthHandler.sock.recv(86).decode()
-                EthHandler.sock.send(b'-')
+            if EthHandler.sock is not None and EthHandler.eth_fault == 0:
+                try:
+                    data = EthHandler.sock.recv(86).decode()
+                    EthHandler.sock.send(b'-')
+                except:
+                    EthHandler.eth_fault = 1
+                    break
                 if data:
                     datalist = data.split("|")
                     for msg in datalist:
@@ -168,5 +171,8 @@ class Streaming(QThread):
                             else:
                                 print("run input invalid")
             else:
-                EthHandler.eth_fault = 1
                 EthHandler.sock = EthHandler.attemptEthConnect()
+                if EthHandler.sock is not None:
+                    EthHandler.eth_fault = 0
+                else:
+                    EthHandler.eth_fault = 1
