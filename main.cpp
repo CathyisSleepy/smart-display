@@ -9,7 +9,7 @@
 #define motor ConnectorM0
 
 // Define the acceleration limit to be used for each move
-int32_t accelerationLimit = 600; // pulses per sec^2
+int32_t accelerationLimit = 7000; // pulses per sec^2
 
 // Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
@@ -66,9 +66,9 @@ int main(void)
 
 	// Specify the desired network values:
 	// ClearCore IP address
-	IpAddress ip = IpAddress(192, 168, 250, 250);
+	IpAddress ip = IpAddress(169, 254, 207, 250);
 	// Router/switch IP address
-	IpAddress gateway = IpAddress(192, 168, 250, 1);
+	IpAddress gateway = IpAddress(169, 254, 207, 1);
 	// Mask to separate network vs. host addresses (required for TCP)
 	IpAddress netmask = IpAddress(255, 255, 0, 0);
 	// Set the network values through the EthernetManager.
@@ -121,7 +121,8 @@ int main(void)
 	   {
 		   running = false;
 		   EthernetMgr.Refresh();
-		   motor.EnableRequest(false);
+		   motor.EnableRequest(true);
+		   motor.MoveVelocity(0);
 		   uint32_t current_time = Milliseconds();
 		   uint32_t timer_count = current_time - timer_start;
 		   
@@ -163,6 +164,7 @@ int main(void)
 		   client.Send("|run,0|");
 		   if (faulted)
 		   {
+			   client.Send("|fault,1|");
 			   fwdLight.State(false);
 			   
 			   if(!stopLight.State() && 1000 <= timer_count)
@@ -284,7 +286,7 @@ int main(void)
 	   
 	   if (client.Connected()) 
 	   {
-			ConnectorUsb.SendLine("a client connected");
+			//ConnectorUsb.SendLine("a client connected");
 			// The server has returned a connected client with incoming data available.
 			bool recv_in_prog = false;
 			int idex = 0;
@@ -295,7 +297,7 @@ int main(void)
 			{
 				// Send the data received from the client over a serial port.
 				data_in = client.Read();
-				ConnectorUsb.SendLine(data_in);
+				//ConnectorUsb.SendLine(data_in);
 				if (data_in == 60 && !recv_in_prog)
 				{
 					recv_in_prog = true;
@@ -327,6 +329,7 @@ int main(void)
 						
 						case 114: //r -> reset
 						bin_select = 4; //bin = reset
+						ConnectorUsb.SendLine("reset received");
 						break;
 								   
 						default:
@@ -343,86 +346,105 @@ int main(void)
 				{
 					switch (bin_select)
 					{
+						ConnectorUsb.Send("data from tag = ");
+						ConnectorUsb.SendLine(data_in);
 						case 1: //motor speed
-						if (0 <= data_in && data_in <= 255)
 						{
-							float x = data_in / 255;
-							uint32_t result = 500 + (16200 - 500) * x;
-							if (result <= 16200 && result >= 0)
+							if (0 <= data_in && data_in <= 255)
 							{
-								motor_speed = result;
+								float x = static_cast<float>(data_in) / 255;
+								float result = 10200 * x;
+								if (result <= 10200 && result >= 500)
+								{
+									motor_speed = static_cast<int>(result);
+									ConnectorUsb.Send("motor_speed after conversion = ");
+									ConnectorUsb.SendLine(result);
+								}
 							}
-						}
-						
-						if (!fwd)
-						{
-							motor_speed = motor_speed * -1;
-						}
-						ConnectorUsb.SendLine(motor_speed);
-						if(running && !faulted)
-						{
-							MoveAtVelocity(motor_speed);
+							
+							if (!fwd)
+							{
+								motor_speed = motor_speed * -1;
+							}
+							ConnectorUsb.SendLine(motor_speed);
+							if(running && !faulted)
+							{
+								MoveAtVelocity(motor_speed);
+							}
 						}
 						break;
 									   
 						case 2: //start/stop motor
-						
-						if ((data_in == 1 || data_in == 0) && !faulted)
 						{
-							running = data_in;
-						}
-						
-						if (running)
-						{
-							if (fwd)
+							if ((data_in == 1 || data_in == 0) && !faulted)
 							{
-								stopLight.State(false);
-								revLight.State(false);
-								fwdLight.State(true);
+								running = data_in;
+							}
+							
+							if (running)
+							{
+								if (fwd)
+								{
+									stopLight.State(false);
+									revLight.State(false);
+									fwdLight.State(true);
+								}
+								else
+								{
+									stopLight.State(false);
+									revLight.State(true);
+									fwdLight.State(false);
+								}
+								MoveAtVelocity(motor_speed);
 							}
 							else
 							{
-								stopLight.State(false);
-								revLight.State(true);
+								//stop the motor and light up the stop button
+								MoveAtVelocity(0);
+								stopLight.State(true);
+								revLight.State(false);
 								fwdLight.State(false);
 							}
-							MoveAtVelocity(motor_speed);
-						}
-						else
-						{
-							//stop the motor and light up the stop button
-							MoveAtVelocity(0);
-							stopLight.State(true);
-							revLight.State(false);
-							fwdLight.State(false);
 						}
 						break;
 							   
 						case 3: //set wait_time
-						//map 1 byte on 2s to 30s (2000ms to 3000ms)
-						float x  = data_in / 255;
-						uint32_t result = 2000 + (30000 - 2000) * x;
-						//if the result is valid
-						if (result >= 2000 && result <= 30000)
 						{
-							//set the time until the machine reverts back to default foward state
-							wait_time = result;
+							//map 1 byte on 2s to 30s (2000ms to 3000ms)
+							float y  = data_in / 255;
+							uint32_t resulty = 2000 + (30000 - 2000) * y;
+							//if the result is valid
+							if (resulty >= 2000 && resulty <= 30000)
+							{
+								//set the time until the machine reverts back to default foward state
+								wait_time = resulty;
+							}
 						}	
 						break;
 						
 						case 4: //reset faults
-						if (faulted)
 						{
-							faulted = false;
-							motor.ClearAlerts();
-							motor.EnableRequest(true);
+							if (faulted)
+							{
+								faulted = false;
+								InitializeMotor();
+								motor.ClearAlerts();
+								motor.EnableRequest(true);
+								ConnectorUsb.SendLine("reset complete");
+							}
+							else
+							{
+								continue;
+							}
 						}
 						break;
 							   	   
 						default:
-						//invalid tag so exit and look for next
-						idex = 0;
-						recv_in_prog = false;
+						{
+							//invalid tag so exit and look for next
+							idex = 0;
+							recv_in_prog = false;
+						}
 						break;
 					}
 					idex++;
@@ -434,7 +456,7 @@ int main(void)
 	   revState_past = revState;
 	   stopState_past = stopState;
 	   client.Send("|estop,0|");
-	   if (running)
+	   if (!faulted)
 	   {
 		   client.Send("|run,1|fault,0|");
 	   }
@@ -466,8 +488,16 @@ void InitializeMotor()
 
 		// Waits for HLFB to assert (waits for homing to complete if applicable)
 		ConnectorUsb.SendLine("Waiting for HLFB...");
+		int timeout_start = Milliseconds();
+		int timeout;
 		while (motor.HlfbState() != MotorDriver::HLFB_ASSERTED)
 		{
+			timeout = Milliseconds();
+			if (timeout - timeout_start >= 20000)
+			{
+				faulted = 1;
+				break;
+			}
 			continue;
 		}
 		while (!motor.EStopConnector(CLEARCORE_PIN_DI6))

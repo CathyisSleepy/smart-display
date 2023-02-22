@@ -67,21 +67,29 @@ class Setting(QObject):
     @Slot(int)
     def motorSpeedSet(self, val):
         if not EthHandler.eth_fault:
-            EthHandler.sock.send(b'<m' + chr(val).encode() + b'>')
-
+            try:
+                EthHandler.sock.send(b'<m' + chr(val).encode() + b'>')
+            except:
+                EthHandler.eth_fault = 1
         EthHandler.motor_speed = val
 
     #tell clearcore to stop main loop
     @Slot()
     def ccStart(self):
         if not EthHandler.eth_fault:
-            EthHandler.sock.send(b'<l' + chr(1).encode() + b'>') 
+            try:
+                EthHandler.sock.send(b'<l' + chr(1).encode() + b'>')
+            except:
+                EthHandler.eth_fault = 1
 
     #tell clearcore to start main loop
     @Slot()
     def ccStop(self):
         if not EthHandler.eth_fault:
-            EthHandler.sock.send(b'<l' + chr(0).encode() + b'>')
+            try:
+                EthHandler.sock.send(b'<l' + chr(0).encode() + b'>')
+            except:
+                EthHandler.eth_fault = 1
 
     @Slot()
     def ccReset(self):
@@ -89,7 +97,11 @@ class Setting(QObject):
             EthHandler.sock = EthHandler.attemptEthConnect()
         if EthHandler.sock is not None:
             EthHandler.eth_fault = 0
-            EthHandler.sock.send(b'<r' + b'>')
+            try:
+                EthHandler.sock.send(b'<r' + b'>')
+            except:
+                EthHandler.sock = None
+                EthHandler.eth_fault = 1
         else:
             EthHandler.eth_fault = 1
 
