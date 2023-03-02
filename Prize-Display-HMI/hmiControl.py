@@ -12,14 +12,13 @@ if 'PyQt5' in sys.modules:
 else:
         from PySide2.QtCore import Signal, Slot
 
-'''
+
 #For testing
 HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
 PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
-'''
 
-HOST = '169.254.207.250'    # The remote host
-PORT = 8888              # The same port as used by the server
+#HOST = '169.254.207.250'    # The remote host
+#PORT = 8888              # The same port as used by the server
 
 class EthHandler():
 
@@ -70,7 +69,7 @@ class Setting(QObject):
             try:
                 EthHandler.sock.send(b'<m' + chr(val).encode() + b'>')
             except:
-                EthHandler.eth_fault = 1
+                EthHandler.eth_fault = True
         EthHandler.motor_speed = val
 
     #tell clearcore to stop main loop
@@ -80,7 +79,7 @@ class Setting(QObject):
             try:
                 EthHandler.sock.send(b'<l' + chr(1).encode() + b'>')
             except:
-                EthHandler.eth_fault = 1
+                EthHandler.eth_fault = True
 
     #tell clearcore to start main loop
     @Slot()
@@ -89,42 +88,39 @@ class Setting(QObject):
             try:
                 EthHandler.sock.send(b'<l' + chr(0).encode() + b'>')
             except:
-                EthHandler.eth_fault = 1
+                EthHandler.eth_fault = True
 
     @Slot()
     def ccReset(self):
         if EthHandler.eth_fault:
             EthHandler.sock = EthHandler.attemptEthConnect()
         if EthHandler.sock is not None:
-            EthHandler.eth_fault = 0
+            EthHandler.eth_fault = False
             try:
                 EthHandler.sock.send(b'<r' + b'>')
             except:
                 EthHandler.sock = None
-                EthHandler.eth_fault = 1
+                EthHandler.eth_fault = False
         else:
-            EthHandler.eth_fault = 1
+            EthHandler.eth_fault = True
 
     # close
     @Slot()
     def closeWindow(self):
         sys.exit()
 
-    @Slot(result=bool)
-    def getEthFault(self):
-        return EthHandler.eth_fault
-
 class Streaming(QThread):
     EstopSignal = Signal(bool)
     FaultSignal = Signal(bool)
     RunSignal = Signal(bool)
+    EthSignal = Signal(bool)
 
     if EthHandler.eth_fault:
         EthHandler.sock = EthHandler.attemptEthConnect()
         if EthHandler.sock is not None:
-            EthHandler.eth_fault = 0
+            EthHandler.eth_fault = False
         else:
-            EthHandler.eth_fault = 1
+            EthHandler.eth_fault = True
 
     def __init__(self):
         super().__init__()
@@ -132,13 +128,12 @@ class Streaming(QThread):
     def run(self):
         data = None
         while True:
-            if EthHandler.sock is not None and EthHandler.eth_fault == 0:
+            if EthHandler.sock is not None and EthHandler.eth_fault != True:
                 try:
                     data = EthHandler.sock.recv(86).decode()
                     EthHandler.sock.send(b'-')
                 except:
-                    EthHandler.eth_fault = 1
-                    break
+                    EthHandler.eth_fault = True
                 if data:
                     datalist = data.split("|")
                     for msg in datalist:
@@ -156,6 +151,8 @@ class Streaming(QThread):
                                 print("estop: " + str(estop))
                             else:
                                 print("estop input invalid")
+                                continue
+
                         elif tag[0] == "fault":
                             try:
                                 fault = int(tag[1])
@@ -169,6 +166,8 @@ class Streaming(QThread):
                                 print("fault: " + str(fault))
                             else:
                                 print("fault input invalid")
+                                continue
+                                
                         elif tag[0] == "run":
                             try: 
                                 run = int(tag[1])
@@ -182,9 +181,13 @@ class Streaming(QThread):
                                 print("run: " + str(run))
                             else:
                                 print("run input invalid")
+                                continue
             else:
                 EthHandler.sock = EthHandler.attemptEthConnect()
                 if EthHandler.sock is not None:
-                    EthHandler.eth_fault = 0
+                    EthHandler.eth_fault = False
                 else:
-                    EthHandler.eth_fault = 1
+                    EthHandler.eth_fault = True
+            
+            self.EthSignal.emit(bool(EthHandler.eth_fault))
+            print(EthHandler.eth_fault)
