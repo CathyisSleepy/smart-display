@@ -9,7 +9,7 @@
 #define motor ConnectorM0
 
 // Define the acceleration limit to be used for each move
-int32_t accelerationLimit = 7000; // pulses per sec^2
+int32_t accelerationLimit = 2000; // pulses per sec^2
 
 // Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
@@ -153,13 +153,107 @@ int main(void)
 		   client.Send("|run, 0|");
 	   }
 	   
+	   else
+	   {
+		   client.Send("|fault,0|");
+	   }
+	   
 	   if (!EthernetMgr.PhyLinkActive())
 	   {
 		   faulted = true;
 		   running = false;
 	   }
 	   
-	   if (!running)
+	   if (running)
+	   {
+			if (fwdState)
+		  	{
+			  	stopLight.State(false);
+			  	revLight.State(false);
+			  	fwdLight.State(true);
+			  	fwd = true;
+			  	   
+			  	//if the motor is moving backward move the motor forward
+			  	if (motor_speed < 0)
+			  	{
+				  	motor_speed = motor_speed * -1;
+				  	MoveAtVelocity(motor_speed);
+			  	}
+			  	   
+			  	if (fwdState_past && press_hold_time <= press_timer_count)
+			  	{
+				  	MoveAtVelocity(motor_speed * 1.4);
+			  	}
+			  	   
+			  	else
+			  	{
+				  	   press_timer_start = Milliseconds();
+			  	}
+		  	} 
+			  
+			else if (revState)
+			{
+				stopLight.State(false);
+				revLight.State(true);
+				fwdLight.State(false);
+				fwd = false;
+				   
+				if (motor_speed > 0)
+				{
+					motor_speed = motor_speed * -1;
+				}
+				   
+				if (revState_past && press_hold_time <= press_timer_count)
+				{
+					MoveAtVelocity(motor_speed * 1.4);
+				}
+				   
+				if (!revState_past)
+				{
+					press_timer_start = Milliseconds();
+				}
+				   
+				MoveAtVelocity(motor_speed);
+				timer_start = Milliseconds();
+			}
+			
+			else if (stopState)
+			{
+				stopLight.State(true);
+				revLight.State(false);
+				fwdLight.State(false);
+				MoveAtVelocity(0);
+				   
+				if (stopState_past && stop_hold_time <= press_timer_count)
+				{
+					MoveAtVelocity(0);
+					running = 0;
+				}
+				   
+				if (!stopState_past)
+				{
+					press_timer_start = Milliseconds();
+				}
+				   
+				timer_start = Milliseconds();
+			}
+		
+			   if (timer_count >= wait_time)
+			   {
+				   fwd = true;
+				   if (motor_speed < 0)
+				   {
+					   motor_speed = motor_speed * -1;
+				   }
+				   
+				   stopLight.State(false);
+				   revLight.State(false);
+				   fwdLight.State(true);
+				   MoveAtVelocity(motor_speed);
+			   }
+	   }
+	   
+	   else
 	   {
 		   client.Send("|run,0|");
 		   if (faulted)
@@ -196,92 +290,6 @@ int main(void)
 					timer_start = Milliseconds();
 				}  
 		   }
-	   }
-
-	   if (fwdState && running) 
-	   {
-          stopLight.State(false);
-          revLight.State(false);
-          fwdLight.State(true);
-		  fwd = true;
-		  
-		  //if the motor is moving backward move the motor forward
-		  if (motor_speed < 0)
-		  {
-			  motor_speed = motor_speed * -1;
-			  MoveAtVelocity(motor_speed);
-		  }
-		  
-		  if (fwdState_past && press_hold_time <= press_timer_count)
-		  {
-			  MoveAtVelocity(motor_speed * 1.4);
-		  }
-		  
-		  if (!fwdState_past)
-		  {
-			  press_timer_start = Milliseconds();
-		  }
-	   }
-	   
-	   else if (revState && running)
-	   {
-		    stopLight.State(false);
-		    revLight.State(true);
-		    fwdLight.State(false);
-		    fwd = false;
-			
-		    if (motor_speed > 0)
-		    {
-			    motor_speed = motor_speed * -1;
-		    }
-			
-		    if (revState_past && press_hold_time <= press_timer_count)
-		    {
-			    MoveAtVelocity(motor_speed * 1.4);
-	  	    }
-		  
-		    if (!revState_past)
-		    {
-			    press_timer_start = Milliseconds();
-		    }
-			
-			MoveAtVelocity(motor_speed);
-			timer_start = Milliseconds();
-	   }
-	   
-	   else if (stopState)
-	   {
-		   stopLight.State(true);
-		   revLight.State(false);
-		   fwdLight.State(false);
-		   MoveAtVelocity(0);
-		   
-		   if (stopState_past && stop_hold_time <= press_timer_count)
-		   {
-				MoveAtVelocity(0);
-				running = 0;
-		   }
-		   		  
-		   if (!stopState_past)
-		   {
-			    press_timer_start = Milliseconds();
-		   }
-		   
-		   timer_start = Milliseconds();
-	   }
-	   
-	   if (timer_count >= wait_time && running)
-	   {
-		   fwd = true;
-		   if (motor_speed < 0)
-		   {
-			   motor_speed = motor_speed * -1;
-		   }
-		   
-		   stopLight.State(false);
-		   revLight.State(false);
-		   fwdLight.State(true);
-		   MoveAtVelocity(motor_speed);
 	   }
 	   
 	   if (client.Connected()) 
@@ -353,8 +361,8 @@ int main(void)
 							if (0 <= data_in && data_in <= 255)
 							{
 								float x = static_cast<float>(data_in) / 255;
-								float result = 10200 * x;
-								if (result <= 10200 && result >= 500)
+								float result = 4200 * x;
+								if (result <= 4200 && result >= 500)
 								{
 									motor_speed = static_cast<int>(result);
 									ConnectorUsb.Send("motor_speed after conversion = ");
@@ -456,10 +464,6 @@ int main(void)
 	   revState_past = revState;
 	   stopState_past = stopState;
 	   client.Send("|estop,0|");
-	   if (!faulted)
-	   {
-		   client.Send("|run,1|fault,0|");
-	   }
    }
 }
 
