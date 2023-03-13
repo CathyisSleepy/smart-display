@@ -18,7 +18,8 @@ else:
 	from PySide2.QtCore import *
 	print("this app use pyside2")
 
-from hmiControl import Setting, Streaming
+from hmiControl import Setting
+from hmiStream import Streaming
  
 # launch the app
 if __name__ == '__main__':
