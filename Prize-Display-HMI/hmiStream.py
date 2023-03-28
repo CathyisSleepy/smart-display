@@ -36,14 +36,15 @@ class Streaming(QThread):
             if EthHandler.sock is not None and EthHandler.eth_fault != True:
                 try:
                     data = EthHandler.sock.recv(86).decode()
-                    EthHandler.sock.send(b'-')
+                    EthHandler.sock.send(b'')
                 except:
+                    EthHandler.sock.close()
                     EthHandler.eth_fault = True
                 if data:
                     datalist = data.split("|")
                     for msg in datalist:
                         tag = msg.split(",")
-                        print("tag is:" + str(tag[0]))
+                        #print("tag is:" + str(tag[0]))
                         if tag[0] == "estop":
                             try:
                                 estop = int(tag[1])
@@ -73,7 +74,7 @@ class Streaming(QThread):
                                 print("fault input invalid")
                                 continue
                                 
-                        elif tag[0] == "run":
+                        elif tag[0] == "run" or tag[0] == "running":
                             try: 
                                 run = int(tag[1])
                             except:
@@ -82,10 +83,26 @@ class Streaming(QThread):
                                 continue
                                 
                             if run == 1 or run == 0:
-                                self.RunSignal.emit(not bool(run))
+                                self.RunSignal.emit(bool(run))
                                 print("run: " + str(run))
                             else:
-                                print("run input invalid")
+                                print("run input invalid: " + str(run))
+                                continue
+
+                        elif tag[0] == "speed":
+                            try: 
+                                speed = int(tag[1])
+                            except:
+                                print("failed to cast speed to int")
+                                print("run invalid input: " + str(tag[1]))
+                                continue
+                                
+                            if speed >= -255 and speed <= 255:
+                                adj_speed = speed / 2550
+                                self.MotorSignal.emit(int(adj_speed))
+                                print("speed: " + str(speed))
+                            else:
+                                print("speed input invalid")
                                 continue
             else:
                 EthHandler.sock = EthHandler.attemptEthConnect()

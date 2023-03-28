@@ -29,7 +29,7 @@ ApplicationWindow {
         onClicked: {
             stackview.push("HomeScreen.qml",StackView.Immediate),
             button1.enabled = true,
-            button.enabled = false
+            button.enabled = false 
         }
     }
 
@@ -48,21 +48,24 @@ ApplicationWindow {
     }
 
     Item{
-
         focus: true
         property bool ethfault: false
+        property bool estopped: false
     
-        Component.onCompleted: _Streaming.EthSignal.connect(ethfaultchangevalue)
+        Component.onCompleted: {
+            _Streaming.EthSignal.connect(ethfaultchangevalue),
+            _Streaming.EstopSignal.connect(estoppedchangevalue)
+        } 
 
         Popup{
-            id: popup
+            id: conn_error
             x: 100
             y: 100
-            width: 200
-            height: 300
+            width: 800
+            height: 500
             modal: true
             focus: true
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+            closePolicy: Popup.NoAutoClose
 
             Text{
                 x: 150
@@ -70,6 +73,53 @@ ApplicationWindow {
                 text: "CONTROLLER CONNECTION FAULT"
                 font.pixelSize: 35
             }
+
+            Button{
+                id: reset
+                x: 500
+                y: 200
+                width: 175
+                height: 75
+                palette.button: "blue"
+                palette.buttonText: "white"
+                text: "Reconnect"
+                onClicked:
+                {
+                    _Setting.ethReset()
+                }
+            }
+        }
+
+        Popup{
+            id: estop_error
+            x: 100
+            y: 100
+            width: 800
+            height: 500
+            modal: true
+            focus: true
+            closePolicy: Popup.NoAutoClose
+
+            Text{
+                x: 150
+                y: 150
+                text: "ESTOP PRESSED"
+                font.pixelSize: 35
+            }
+        }
+
+        function estoppedchangevalue(value){
+            if(value != undefined){
+                estopped = value
+
+                if(value == 1){
+                    estop_error.open()
+                }
+
+                if(value == 0){
+                    estop_error.close()
+                }
+            }  
         }
 
         function ethfaultchangevalue(value){
@@ -77,7 +127,11 @@ ApplicationWindow {
                 ethfault = value
             
                 if(value == 1){
-                    popup.open()
+                    conn_error.open()
+                }
+
+                if(value == 0){
+                    conn_error.close()
                 }
             }
         } 

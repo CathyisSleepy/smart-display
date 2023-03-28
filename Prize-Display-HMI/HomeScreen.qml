@@ -12,51 +12,59 @@ Item {
     focus: true
     Keys.onEscapePressed:_Setting.closeWindow()
 
-    property int mspeed: 0
+    property int motor_readout: 0
     property bool mfault: false
     property bool estopped: false
+    property bool not_running: true
     property bool running: false
     property bool ethfault: false
+    property bool auto_on: true
 
     Component.onCompleted: {
         _Streaming.FaultSignal.connect(mfaultchangevalue)
         _Streaming.EstopSignal.connect(estoppedchangevalue)
         _Streaming.RunSignal.connect(runningchangevalue)
         _Streaming.EthSignal.connect(ethfaultchangevalue)
-        mspeedchangevalue(_Setting.motorSpeedGet())
+        _Streaming.MotorSignal.connect(readoutchangevalue)
+        setautolighting()
+        setstartstoplighting()
+        _Setting.motorSpeedGet()
         focus = true
     }
 
     Rectangle{
         anchors.fill: parent
         color: "light gray"
+        focus: true
         
         Text {
             id: speed_label
             x: 500
             y: 200
-            text: "Adjust Motor Speed" 
-            font.pixelSize: 45
+            text: "Motor Readout" 
+            font.pixelSize: 40
         }
     
         Text {
-            id: speed_readout
+            id: speed_perc
             x: 500
             y: 255
             visible: true
-            text: mspeed
+            focus: true
+            text: motor_readout
             font.pixelSize: 45
             Text {
                 id: perc
                 anchors.left: parent.right
                 anchors.leftMargin: 3
                 text: "%"
-                font.pixelSize: 30
+                font.pixelSize: 35
             }
         }
 
         Text {
             id: eth_fault_warning
+            focus: true
             visible: ethfault
             x: 1000
             y: 100
@@ -67,6 +75,7 @@ Item {
 
         Text {
             id: fault_warning
+            focus: true
             visible: mfault
             x: 1000
             y: 140
@@ -86,34 +95,19 @@ Item {
         }
 
         Text {
-            id: run_state
+            id: running_lable
             visible: running
-            x: 1000
+            focus: true
+            x: 200
             y: 220
-            text: "Machine Stopped"
+            text: "Machine Running"
             font.pixelSize: 30
-            color: "yellow"
+            color: "green"
         }
-        
-        Slider {
-            id: motor_slider
-            x: 450
-            y: 360
-            width: 456
-            height: 62
-            scale: 1.7
-            stepSize: 1
-            to: 255
-            value: _Setting.motorSpeedGet()
-            onValueChanged:
-            { 
-                _Setting.motorSpeedSet(value),
-                mspeedchangevalue(value)
-            }
-        }
-    
+
         Button {
             id: stop
+            focus: true
             x: 800
             y: 600
             width: 200
@@ -129,6 +123,7 @@ Item {
 
         Button {
             id: start
+            focus: true
             x: 200
             y: 600
             width: 200
@@ -138,7 +133,8 @@ Item {
             text: "Start"
             onClicked:
             {
-                _Setting.ccStart()
+                _Setting.ccStart(),
+                _Setting.motorSpeedGet()
             }
         }
 
@@ -156,11 +152,94 @@ Item {
                 _Setting.ccReset()
             }
         }
+
+        Button {
+            id: manual
+            x: 1000
+            y: 350
+            width: 200
+            height: 100
+            palette.button: "black"
+            palette.buttonText: "white"
+            text: "Manual"
+            onClicked:
+            {
+                _Setting.ccManual(),
+                setautolighting() 
+            }
+        }
+
+        Button {
+            id: auto
+            x: 1000
+            y: 455
+            width: 200
+            height: 100
+            palette.button: "dark gray"
+            palette.buttonText: "white"
+            text: "Automatic"
+            onClicked:
+            {
+                _Setting.ccAuto(),
+                setautolighting()
+            }
+        }
+
+        Button {
+            id: up
+            x: 820
+            y: 245
+            width: 150
+            height: 100
+            autoRepeat: true
+            autoRepeatDelay: 20
+            palette.button: "yellow"
+            palette.buttonText: "white"
+            text: "Up"
+            onClicked:
+            {
+                _Setting.ccFwdButton() 
+            }
+        }
+
+        Button {
+            id: down
+            x: 820
+            y: 350
+            width: 150
+            height: 100
+            autoRepeat: true
+            autoRepeatDelay: 20
+            palette.button: "yellow"
+            palette.buttonText: "white"
+            text: "Down"
+            onClicked:
+            {
+                _Setting.ccRevButton()
+            }
+        }
+
+        Button {
+            id: pause
+            x: 820
+            y: 455
+            width: 150
+            height: 100
+            autoRepeat: true
+            autoRepeatDelay: 20
+            palette.button: "orange"
+            palette.buttonText: "white"
+            text: "Pause"
+            onClicked:
+            {
+                _Setting.ccStopButton()
+            }
+        }
     }
     
-    function mspeedchangevalue(value){
+    function readoutchangevalue(value){
         if(value != undefined) {
-            mspeed = parseInt(value / 255 * 100)
+            motor_readout = parseInt(value)
         }  
     }
     
@@ -179,6 +258,8 @@ Item {
     function runningchangevalue(value){
         if(value != undefined){
             running = value
+
+            setstartstoplighting()
         }
     }
 
@@ -186,6 +267,31 @@ Item {
         if(value != undefined){
             ethfault = value
         }
+    }
+
+    function setautolighting(){
+        auto_on = _Setting.getAutoState()
+
+        if(auto_on){
+            auto.palette.button = "dark gray"
+            manual.palette.button = "black"
+        }
+
+        else{
+            auto.palette.button = "black"
+            manual.palette.button = "dark gray"
+        }
+    }
+
+    function setstartstoplighting(){
+        if(running){
+                start.palette.button = "green"
+                stop.palette.button = "dark red"
+            }
+            else{
+                start.palette.button = "dark green"
+                stop.palette.button = "red"
+            }
     }
      
 }
