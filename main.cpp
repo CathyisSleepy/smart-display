@@ -9,7 +9,8 @@
 #define motor ConnectorM0
 
 // Define the acceleration limit to be used for each move
-int32_t accelerationLimit = 2000; // pulses per sec^2
+int32_t accelerationLimit = 3500; // pulses per sec^2
+int32_t velocityLimit = 4500;
 
 // Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
@@ -34,12 +35,15 @@ bool running = false;
 bool faulted = false;
 bool in_auto = true;
 int motor_speed;
+int motor_pos;
 uint32_t wait_time  = 9000;
 uint32_t press_hold_time = 1500;
 uint32_t stop_hold_time = 5000;
 uint32_t timer_start;
 uint32_t press_timer_start;
+uint32_t stop_press_timer_start;
 uint32_t blink_timer_start;
+uint32_t update_timer_start;
 bool hmi_fwd_state;
 bool hmi_rev_state;
 bool hmi_stop_state;
@@ -130,6 +134,8 @@ int main(void)
 	   uint32_t press_timer_count = current_time - press_timer_start;
 	   // Obtain a reference to a connected client with incoming data available.
 	   EthernetTcpClient client = server.Available();
+	
+		UpdateTags();
 	   
 	   if(faulted)
 	   {
@@ -153,25 +159,33 @@ int main(void)
 			  	fwd = true;
 			  	   
 			  	//if the motor is moving backward move the motor forward
-			  	if (motor_speed < 0)
-			  	{
-				  	motor_speed = motor_speed * -1;
-				  	MoveAtVelocity(motor_speed);
-			  	}
-			  	   
-			  	if (fwdState_past && press_hold_time <= press_timer_count && in_auto)
-			  	{
-				  	MoveAtVelocity(motor_speed + 700);
-					fwdState_past = false;
-			  	}
-			  	   
-			  	else if (!fwdState_past)
-			  	{
-					press_timer_start = Milliseconds();
-			  	}
-				  
-				MoveAtVelocity(motor_speed);
-				hmi_fwd_state = false;
+				if (in_auto)
+				{
+					if (motor_speed < 0)
+					{
+						motor_speed = motor_speed * -1;
+						MoveAtVelocity(motor_speed);
+					}
+					
+					if (fwdState_past && press_hold_time <= press_timer_count)
+					{
+						MoveAtVelocity(motor_speed + 700);
+						fwdState_past = false;
+					}
+					
+					else if (!fwdState_past)
+					{
+						press_timer_start = Milliseconds();
+					}
+					
+					MoveAtVelocity(motor_speed);
+				}
+			  	
+				else
+				{
+					motor.Move(75, motor.MOVE_TARGET_REL_END_POSN);
+					blink_timer_start = Milliseconds();
+				}
 		  	} 
 			  
 			else if (revState || hmi_rev_state)
@@ -179,26 +193,34 @@ int main(void)
 				stopLight.State(false);
 				revLight.State(true);
 				fwdLight.State(false);
-				fwd = false;
-				   
-				if (motor_speed > 0)
+				if (in_auto)
 				{
-					motor_speed = motor_speed * -1;
-				}
-				   
-				if (revState_past && press_hold_time <= press_timer_count && in_auto)
-				{
-					MoveAtVelocity(motor_speed + 700);
-				}
-				   
-				else if (!revState_past)
-				{
-					press_timer_start = Milliseconds();
+					fwd = false;
+					
+					if (motor_speed > 0)
+					{
+						motor_speed = motor_speed * -1;
+					}
+					
+					if (revState_past && press_hold_time <= press_timer_count)
+					{
+						MoveAtVelocity(motor_speed + 700);
+					}
+					
+					else if (!revState_past)
+					{
+						press_timer_start = Milliseconds();
+					}
+					
+					MoveAtVelocity(motor_speed);
+					timer_start = Milliseconds();
 				}
 				
-				MoveAtVelocity(motor_speed);
-				hmi_rev_state = false;
-				timer_start = Milliseconds();
+				else
+				{
+					motor.Move(-75, motor.MOVE_TARGET_REL_END_POSN);
+					blink_timer_start = Milliseconds();
+				}
 			}
 			
 			else if (stopState || hmi_stop_state)
@@ -219,7 +241,6 @@ int main(void)
 					press_timer_start = Milliseconds();
 				}
 				
-				hmi_stop_state = false;   
 				timer_start = Milliseconds();
 			}
 			
@@ -240,12 +261,14 @@ int main(void)
 				}
 			}
 			
-			else if (!in_auto && !revState && !fwdState)
+			else if (!in_auto && !revState && !fwdState && !hmi_fwd_state && !hmi_rev_state)
 			{
-				stopLight.State(true);
-				revLight.State(true);
-				fwdLight.State(true);
-				MoveAtVelocity(0);
+				if (blink_timer_count >= 1000)
+				{
+					stopLight.State(true);
+					revLight.State(true);
+					fwdLight.State(true);
+				}
 			}
 	   }
 	   
@@ -268,6 +291,7 @@ int main(void)
 				   blink_timer_start = Milliseconds();
 			   }
 		   }
+		   
 		   else
 		   {
 		        revLight.State(false);
@@ -285,6 +309,14 @@ int main(void)
 				}  
 		   }
 	   }
+	   
+	   hmi_fwd_state = false;
+	   hmi_rev_state = false;
+	   hmi_stop_state = false;
+	   
+	   fwdState_past = fwdState + hmi_fwd_state;
+	   revState_past = revState + hmi_rev_state;
+	   stopState_past = stopState + hmi_stop_state;
 	   
 	   if (client.Connected()) 
 	   {
@@ -369,6 +401,7 @@ int main(void)
 								if (result <= speedmax && result >= speedmin)
 								{
 									motor_speed = static_cast<int>(result);
+									motor.VelMax(motor_speed);
 									ConnectorUsb.Send("motor_speed after conversion = ");
 									ConnectorUsb.SendLine(result);
 								}
@@ -394,7 +427,7 @@ int main(void)
 								UpdateTags();
 							}
 							
-							if (running)
+							if (running && in_auto)
 							{
 								if (fwd)
 								{
@@ -461,6 +494,11 @@ int main(void)
 							if (data_in == 1 || data_in == 0)
 							{
 								in_auto = data_in;
+								
+								if(!in_auto)
+								{
+									MoveAtVelocity(0);
+								}
 							}
 						}
 						break;
@@ -500,9 +538,7 @@ int main(void)
 				EthernetMgr.Refresh();					   
 			}
 	   } 
-	   fwdState_past = fwdState + hmi_fwd_state;
-	   revState_past = revState + hmi_rev_state;
-	   stopState_past = stopState + hmi_stop_state;
+	   
    }
 }
 
@@ -574,10 +610,10 @@ bool MoveAtVelocity(int32_t velocity)
 	// Waits for the step command to ramp up/down to the commanded velocity.
 	// This time will depend on your Acceleration Limit.
 	//ConnectorUsb.SendLine("Ramping to speed...");
-	while (!motor.StatusReg().bit.AtTargetVelocity) 
-	{
-		continue;
-	}
+	//while (!motor.StatusReg().bit.AtTargetVelocity) 
+	//{
+		//continue;
+	//}
 
 	//ConnectorUsb.SendLine("At Speed");
 	return true;
@@ -587,7 +623,7 @@ void UpdateTags()
 {
 	EthernetTcpClient client = server.Available();
 	
-	uint8_t current_speed_percent = motor.HlfbPercent();
+	uint8_t current_speed_percent = static_cast<int>(motor.HlfbPercent());
 	client.Send("|speed,");
 	client.Send(current_speed_percent);
 	client.Send("|");
@@ -628,9 +664,7 @@ void UpdateTags()
 
 void Estopped()
 {
-	motor.AccelMax(5000);
-	motor.MoveVelocity(0);
-	motor.AccelMax(accelerationLimit);
+	motor.MoveStopAbrupt();
 	motor.EnableRequest(false);
 	running = false;
 	fwdLight.State(true);
