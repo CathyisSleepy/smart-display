@@ -209,7 +209,7 @@ Item {
             width: 150
             height: 100
             autoRepeat: true
-            autoRepeatDelay: 20
+            autoRepeatInterval: 100
             palette.button: "yellow"
             palette.buttonText: "white"
             text: "Down"
@@ -226,7 +226,7 @@ Item {
             width: 150
             height: 100
             autoRepeat: true
-            autoRepeatDelay: 20
+            autoRepeatInterval: 100
             palette.button: "orange"
             palette.buttonText: "white"
             text: "Pause"
