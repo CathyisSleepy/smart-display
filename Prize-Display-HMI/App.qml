@@ -5,8 +5,8 @@ import QtQuick.Controls 2.1
 // properties of the application window containing UI elements
 ApplicationWindow {
     id: application
-    width: 1280
-    height: 720
+    width: 800
+    height: 480
     visible: true
     visibility: "FullScreen"
  
@@ -21,10 +21,10 @@ ApplicationWindow {
 
     Button {
         id: button
-        x: -21
-        y: -22
-        width: 172
-        height: 181
+        x: -11
+        y: -12
+        width: 80
+        height: 80
         scale: 0.76
         onClicked: {
             stackview.push("HomeScreen.qml",StackView.Immediate),
@@ -35,10 +35,10 @@ ApplicationWindow {
 
     Button {
         id: button1
-        x: -21
-        y: 172
-        width: 172
-        height: 181
+        x: -11
+        y: 60
+        width: 80
+        height: 80
         scale: 0.76
         onClicked: {
             stackview.push("SettingsScreen.qml",StackView.Immediate),
@@ -59,10 +59,10 @@ ApplicationWindow {
 
         Popup{
             id: conn_error
-            x: 100
-            y: 100
-            width: 800
-            height: 500
+            x: 5
+            y: 5
+            width: 750
+            height: 400
             modal: true
             focus: true
             closePolicy: Popup.NoAutoClose
@@ -92,10 +92,10 @@ ApplicationWindow {
 
         Popup{
             id: estop_error
-            x: 100
-            y: 100
-            width: 800
-            height: 500
+            x: 5
+            y: 5
+            width: 750
+            height: 400
             modal: true
             focus: true
             closePolicy: Popup.NoAutoClose

@@ -6,8 +6,8 @@ Item {
     // identify the qml
     id: hmiSettings
     // define width and height of the app
-    width: 1280
-    height: 720
+    width: 800
+    height: 480
 
     property int mspeed: 0
 
@@ -23,16 +23,16 @@ Item {
 
         Text {
             id: speed_label
-            x: 500
-            y: 200
+            x: 250
+            y: 100
             text: "Adjust Motor Speed" 
-            font.pixelSize: 45
+            font.pixelSize: 25
         }
     
         Text {
             id: speed_perc
-            x: 500
-            y: 255
+            x: 250
+            y: 125
             visible: true
             text: mspeed
             font.pixelSize: 45
@@ -41,16 +41,16 @@ Item {
                 anchors.left: parent.right
                 anchors.leftMargin: 3
                 text: "%"
-                font.pixelSize: 30
+                font.pixelSize: 15
             }
         }
 
         Slider {
             id: motor_slider
-            x: 450
-            y: 360
-            width: 456
-            height: 62
+            x: 225
+            y: 180
+            width: 220
+            height: 32
             scale: 1.7
             stepSize: 1
             to: 255
