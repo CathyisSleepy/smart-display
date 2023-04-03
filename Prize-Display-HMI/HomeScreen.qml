@@ -7,8 +7,8 @@ Item {
     // identify the qml
     id: hmiControl
     // define width and height of the app
-    width: 1280
-    height: 720
+    width: 800
+    height: 480
     focus: true
     Keys.onEscapePressed:_Setting.closeWindow()
 
@@ -39,26 +39,26 @@ Item {
         
         Text {
             id: speed_label
-            x: 500
-            y: 200
+            x: 250
+            y: 100
             text: "Motor Readout" 
-            font.pixelSize: 40
+            font.pixelSize: 20
         }
     
         Text {
             id: speed_perc
-            x: 500
-            y: 255
+            x: 250
+            y: 123
             visible: true
             focus: true
             text: motor_readout
-            font.pixelSize: 45
+            font.pixelSize: 23
             Text {
                 id: perc
                 anchors.left: parent.right
                 anchors.leftMargin: 3
                 text: "%"
-                font.pixelSize: 35
+                font.pixelSize: 15
             }
         }
 
@@ -66,10 +66,10 @@ Item {
             id: eth_fault_warning
             focus: true
             visible: ethfault
-            x: 1000
-            y: 100
+            x: 500
+            y: 50
             text: "CONNECTION FAULT"
-            font.pixelSize: 30
+            font.pixelSize: 15
             color: "red"
         }
 
@@ -77,20 +77,20 @@ Item {
             id: fault_warning
             focus: true
             visible: mfault
-            x: 1000
-            y: 140
+            x: 500
+            y: 65
             text: "MOTOR FAULT"
-            font.pixelSize: 30
+            font.pixelSize: 15
             color: "red"
         }
 
         Text {
             id: estop_warning
             visible: estopped
-            x: 1000
-            y: 180
+            x: 500
+            y: 80
             text: "ESTOP PRESSED"
-            font.pixelSize: 30
+            font.pixelSize: 15
             color: "red"
         }
 
@@ -98,20 +98,20 @@ Item {
             id: running_lable
             visible: running
             focus: true
-            x: 200
-            y: 220
+            x: 100
+            y: 110
             text: "Machine Running"
-            font.pixelSize: 30
+            font.pixelSize: 15
             color: "green"
         }
 
         Button {
             id: stop
             focus: true
-            x: 800
-            y: 600
-            width: 200
-            height: 100
+            x: 400
+            y: 300
+            width: 100
+            height: 50
             palette.button: "red"
             palette.buttonText: "white"
             text: "Stop"
@@ -124,10 +124,10 @@ Item {
         Button {
             id: start
             focus: true
-            x: 200
-            y: 600
-            width: 200
-            height: 100
+            x: 100
+            y: 300
+            width: 100
+            height: 50
             palette.button: "green"
             palette.buttonText: "white"
             text: "Start"
@@ -140,10 +140,10 @@ Item {
 
         Button {
             id: reset
-            x: 1000
-            y: 600
-            width: 200
-            height: 100
+            x: 500
+            y: 300
+            width: 100
+            height: 50
             palette.button: "blue"
             palette.buttonText: "white"
             text: "Reset"
@@ -155,10 +155,10 @@ Item {
 
         Button {
             id: manual
-            x: 1000
-            y: 350
-            width: 200
-            height: 100
+            x: 500
+            y: 160
+            width: 100
+            height: 50
             palette.button: "black"
             palette.buttonText: "white"
             text: "Manual"
@@ -171,10 +171,10 @@ Item {
 
         Button {
             id: auto
-            x: 1000
-            y: 455
-            width: 200
-            height: 100
+            x: 500
+            y: 226
+            width: 100
+            height: 50
             palette.button: "dark gray"
             palette.buttonText: "white"
             text: "Automatic"
@@ -187,12 +187,12 @@ Item {
 
         Button {
             id: up
-            x: 820
-            y: 245
-            width: 150
-            height: 100
+            x: 410
+            y: 122
+            width: 75
+            height: 50
             autoRepeat: true
-            autoRepeatDelay: 20
+            autoRepeatInterval: 100
             palette.button: "yellow"
             palette.buttonText: "white"
             text: "Up"
@@ -204,10 +204,10 @@ Item {
 
         Button {
             id: down
-            x: 820
-            y: 350
-            width: 150
-            height: 100
+            x: 410
+            y: 175
+            width: 75
+            height: 50
             autoRepeat: true
             autoRepeatInterval: 100
             palette.button: "yellow"
@@ -221,12 +221,12 @@ Item {
 
         Button {
             id: pause
-            x: 820
-            y: 455
-            width: 150
-            height: 100
+            x: 410
+            y: 228
+            width: 75
+            height: 50
             autoRepeat: true
-            autoRepeatInterval: 100
+            autoRepeatDelay: 20
             palette.button: "orange"
             palette.buttonText: "white"
             text: "Pause"
