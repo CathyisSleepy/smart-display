@@ -117,7 +117,8 @@ Item {
             text: "Stop"
             onClicked:
             {
-                _Setting.ccStop()
+                _Setting.ccStop(),
+                _Setting.motorSpeedGet()
             }
         }
 

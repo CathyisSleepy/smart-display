@@ -21,11 +21,11 @@ class Setting(QObject):
     @Slot(result=int)
     def motorSpeedGet(self):
         try:
-            p = open('store.data', 'rb')
+            p = open('speed.pick', 'rb')
             EthHandler.motor_speed = pickle.load(p)
             p.close
         except:
-             print("load failed")
+            print("load failed")
         EthHandler.attemptEthSend(b'<m' + chr(EthHandler.motor_speed).encode() + b'>')
         return int(EthHandler.motor_speed)
 
@@ -34,7 +34,7 @@ class Setting(QObject):
     def motorSpeedSet(self, val):
         EthHandler.attemptEthSend(b'<m' + chr(val).encode() + b'>')
         try:
-            p = open('store.data', 'wb')
+            p = open('speed.pick', 'wb')
             pickle.dump(EthHandler.motor_speed, p)
             p.close
         except:
