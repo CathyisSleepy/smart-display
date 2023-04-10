@@ -10,12 +10,14 @@ PORT = 8888              # The same port as used by the server
 
 class EthHandler():
 
-    motor_speed = 0
+    cmd_motor_speed = 0
     eth_fault = True
     sock = None
-    in_auto = True
-    running = 0
-    faulted = 0
+    cmd_in_auto = True
+    cmd_running = False
+    running = True
+    faulted = False
+    estopped = False
 
     def attemptEthConnect():
         for res in socket.getaddrinfo(HOST, PORT, socket.AF_UNSPEC, socket.SOCK_STREAM):

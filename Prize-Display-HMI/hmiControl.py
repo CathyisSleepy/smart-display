@@ -22,12 +22,12 @@ class Setting(QObject):
     def motorSpeedGet(self):
         try:
             p = open('speed.pick', 'rb')
-            EthHandler.motor_speed = pickle.load(p)
+            EthHandler.cmd_motor_speed = pickle.load(p)
             p.close
         except:
             print("load failed")
-        EthHandler.attemptEthSend(b'<m' + chr(EthHandler.motor_speed).encode() + b'>')
-        return int(EthHandler.motor_speed)
+        EthHandler.attemptEthSend(b'<m' + chr(EthHandler.cmd_motor_speed).encode() + b'>')
+        return int(EthHandler.cmd_motor_speed)
 
     #tell clearcore what to set the motor speed to
     @Slot(int)
@@ -35,21 +35,23 @@ class Setting(QObject):
         EthHandler.attemptEthSend(b'<m' + chr(val).encode() + b'>')
         try:
             p = open('speed.pick', 'wb')
-            pickle.dump(EthHandler.motor_speed, p)
+            pickle.dump(EthHandler.cmd_motor_speed, p)
             p.close
         except:
             print("save failed")
-        EthHandler.motor_speed = val
+        EthHandler.cmd_motor_speed = val
 
     #tell clearcore to stop main loop
     @Slot()
     def ccStart(self):
-        EthHandler.attemptEthSend(b'<l' + chr(1).encode() + b'>')
+        EthHandler.cmd_running = 1
+        EthHandler.attemptEthSend(b'<l' + chr(EthHandler.cmd_running).encode() + b'>')
 
     #tell clearcore to start main loop
     @Slot()
     def ccStop(self):
-        EthHandler.attemptEthSend(b'<l' + chr(0).encode() + b'>')
+        EthHandler.cmd_running = 0
+        EthHandler.attemptEthSend(b'<l' + chr(EthHandler.cmd_running).encode() + b'>')
 
     @Slot()
     def ccReset(self):
@@ -57,13 +59,13 @@ class Setting(QObject):
 
     @Slot()
     def ccAuto(self):
-        EthHandler.attemptEthSend(b'<a' + chr(1).encode() + b'>')
-        EthHandler.in_auto = 1
-
+        EthHandler.cmd_in_auto = 1
+        EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_in_auto).encode() + b'>')
+        
     @Slot()
     def ccManual(self):
-        EthHandler.attemptEthSend(b'<a' + chr(0).encode() + b'>')
-        EthHandler.in_auto = 0
+        EthHandler.cmd_in_auto = 0
+        EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_in_auto).encode() + b'>')
 
     @Slot()
     def ccFwdButton(self):
@@ -79,7 +81,7 @@ class Setting(QObject):
 
     @Slot(result=bool)
     def getAutoState(self):
-         return EthHandler.in_auto
+         return EthHandler.cmd_in_auto
 
     @Slot(result=bool)
     def ethReset(self):

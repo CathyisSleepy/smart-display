@@ -1,5 +1,5 @@
 import sys
-import os
+import os, time
 import socket
 from hmiEthernet import EthHandler
 
@@ -20,6 +20,8 @@ class Streaming(QThread):
     EthSignal = Signal(bool)
     MotorSignal = Signal(int)
 
+    tag_timer_start = round(time.time() * 1000)
+
     if EthHandler.eth_fault:
         EthHandler.sock = EthHandler.attemptEthConnect()
         if EthHandler.sock is not None:
@@ -34,12 +36,22 @@ class Streaming(QThread):
         data = None
         while True:
             if EthHandler.sock is not None and EthHandler.eth_fault != True:
+                tag_timer_curr = round(time.time() * 1000) - self.tag_timer_start
+                
+                #try to update tags
+                if tag_timer_curr >= 1000:
+                    EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_in_auto).encode() + b'>')
+                    EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_motor_speed).encode() + b'>')
+                    EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_running).encode() + b'>')
+                
+                
                 try:
+                    #look for incoming data    
                     data = EthHandler.sock.recv(86).decode()
-                    EthHandler.sock.send(b'')
                 except:
-                    EthHandler.sock.close()
+                    print("no data")
                     EthHandler.eth_fault = True
+
                 if data:
                     datalist = data.split("|")
                     for msg in datalist:
@@ -53,7 +65,7 @@ class Streaming(QThread):
                                 continue
 
                             if estop == 1 or estop == 0:
-                                self.EstopSignal.emit(bool(estop))
+                                EthHandler.estopped = estop
                                 print("estop: " + str(estop))
                             else:
                                 print("estop input invalid")
@@ -68,7 +80,7 @@ class Streaming(QThread):
                                 continue
                             
                             if fault == 1 or fault == 0:
-                                self.FaultSignal.emit(bool(fault))
+                                EthHandler.eth_fault = fault
                                 print("fault: " + str(fault))
                             else:
                                 print("fault input invalid")
@@ -83,7 +95,7 @@ class Streaming(QThread):
                                 continue
                                 
                             if run == 1 or run == 0:
-                                self.RunSignal.emit(bool(run))
+                                EthHandler.running = run
                                 print("run: " + str(run))
                             else:
                                 print("run input invalid: " + str(run))
@@ -112,5 +124,7 @@ class Streaming(QThread):
                     EthHandler.eth_fault = True
             
             self.EthSignal.emit(bool(EthHandler.eth_fault))
-            print(EthHandler.eth_fault)
-            self.MotorSignal.emit(int(EthHandler.motor_speed))
+            self.EstopSignal.emit(bool(EthHandler.estopped))
+            self.FaultSignal.emit(bool(EthHandler.faulted))
+            self.RunSignal.emit(bool(EthHandler.running))
+            print("stream eth: " + str(EthHandler.eth_fault))
