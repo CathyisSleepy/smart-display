@@ -10,7 +10,7 @@
 
 // Define the acceleration limit to be used for each move
 int32_t accelerationLimit = 3500; // pulses per sec^2
-int32_t velocityLimit = 4500;
+int32_t velocityLimit = 5000;
 
 // Declares our user-defined helper function
 bool MoveAtVelocity(int32_t velocity);
@@ -34,16 +34,22 @@ bool fwd = true;
 bool running = false;
 bool faulted = false;
 bool in_auto = true;
+bool estop_pressed = false;
+bool was_estop = false;
+bool is_jogging = false;
+bool paused = false;
 int motor_speed;
 int motor_pos;
 uint32_t wait_time  = 9000;
-uint32_t press_hold_time = 1500;
+uint32_t press_hold_time = 200;
 uint32_t stop_hold_time = 5000;
 uint32_t timer_start;
 uint32_t press_timer_start;
 uint32_t stop_press_timer_start;
 uint32_t blink_timer_start;
-uint32_t update_timer_start;
+uint32_t tag_timer_start = Milliseconds();
+uint32_t jog_timer_start;
+uint32_t estop_timer_start;
 bool hmi_fwd_state;
 bool hmi_rev_state;
 bool hmi_stop_state;
@@ -119,8 +125,8 @@ int main(void)
     //Start listening for TCP connections on port 8888.
     server.Begin();
 	
-	//pullcordSignal.InterruptHandlerSet(&Estopped, InputManager::FALLING);
-	estopSignal.InterruptHandlerSet(&Estopped, InputManager::FALLING);
+	pullcordSignal.InterruptHandlerSet(&Estopped, InputManager::LOW);
+	estopSignal.InterruptHandlerSet(&Estopped, InputManager::LOW);
   
    while (1)
    {
@@ -132,10 +138,11 @@ int main(void)
 	   uint32_t timer_count = current_time - timer_start;
 	   uint32_t blink_timer_count = current_time - blink_timer_start;
 	   uint32_t press_timer_count = current_time - press_timer_start;
+	   uint32_t tag_timer_count = current_time - tag_timer_start;
+	   uint32_t estop_timer_count = current_time - estop_timer_start;
+	   uint32_t jog_timer_count = current_time - jog_timer_start;
 	   // Obtain a reference to a connected client with incoming data available.
 	   EthernetTcpClient client = server.Available();
-	
-		UpdateTags();
 	   
 	   if(faulted)
 	   {
@@ -143,11 +150,12 @@ int main(void)
 		   UpdateTags();
 	   }
 	   
-	   if (!EthernetMgr.PhyLinkActive())
+	   /*if (!EthernetMgr.PhyLinkActive())
 	   {
 		   faulted = true;
 		   running = false;
 	   }
+	   */
 	   
 	   if (running)
 	   {
@@ -157,34 +165,41 @@ int main(void)
 			  	revLight.State(false);
 			  	fwdLight.State(true);
 			  	fwd = true;
+				paused = false;
+				  
+				 if (motor_speed < 0)
+				 {
+					 motor_speed = motor_speed * -1;
+				 }
 			  	   
 			  	//if the motor is moving backward move the motor forward
 				if (in_auto)
 				{
-					if (motor_speed < 0)
-					{
-						motor_speed = motor_speed * -1;
-						MoveAtVelocity(motor_speed);
-					}
-					
 					if (fwdState_past && press_hold_time <= press_timer_count)
 					{
-						MoveAtVelocity(motor_speed + 700);
-						fwdState_past = false;
+						MoveAtVelocity(motor_speed + 1000);
+						Delay_ms(1);
 					}
-					
-					else if (!fwdState_past)
+					else
 					{
-						press_timer_start = Milliseconds();
+						MoveAtVelocity(motor_speed);
+						
+						if (!fwdState_past)
+						{
+							press_timer_start = Milliseconds();
+						}
 					}
-					
-					MoveAtVelocity(motor_speed);
 				}
 			  	
 				else
 				{
-					motor.Move(75, motor.MOVE_TARGET_REL_END_POSN);
+					jog_timer_start = Milliseconds();
 					blink_timer_start = Milliseconds();
+					
+					if(!is_jogging)
+					{
+						is_jogging = true;
+					}
 				}
 		  	} 
 			  
@@ -193,33 +208,45 @@ int main(void)
 				stopLight.State(false);
 				revLight.State(true);
 				fwdLight.State(false);
-				if (in_auto)
+				
+				fwd = false;
+				paused = false;
+				
+				if (motor_speed > 0)
 				{
-					fwd = false;
-					
-					if (motor_speed > 0)
-					{
-						motor_speed = motor_speed * -1;
-					}
-					
+					motor_speed = motor_speed * -1;
+				}
+				
+				if (in_auto)
+				{	
 					if (revState_past && press_hold_time <= press_timer_count)
 					{
-						MoveAtVelocity(motor_speed + 700);
+						MoveAtVelocity(motor_speed - 1000);
+						//ConnectorUsb.SendLine("rapid started");
+						Delay_ms(1);
 					}
-					
-					else if (!revState_past)
+					else
 					{
-						press_timer_start = Milliseconds();
+						MoveAtVelocity(motor_speed);
+						
+						if (!revState_past)
+						{
+							press_timer_start = Milliseconds();
+						}
 					}
 					
-					MoveAtVelocity(motor_speed);
 					timer_start = Milliseconds();
 				}
 				
 				else
 				{
-					motor.Move(-75, motor.MOVE_TARGET_REL_END_POSN);
+					jog_timer_start = Milliseconds();
 					blink_timer_start = Milliseconds();
+					
+					if(!is_jogging)
+					{
+						is_jogging = true;
+					}
 				}
 			}
 			
@@ -229,6 +256,7 @@ int main(void)
 				revLight.State(false);
 				fwdLight.State(false);
 				MoveAtVelocity(0);
+				paused = true;
 				   
 				if (stopState_past && stop_hold_time <= press_timer_count && !in_auto)
 				{
@@ -244,11 +272,17 @@ int main(void)
 				timer_start = Milliseconds();
 			}
 			
+			if ((!fwdState_past||!revState_past) && !paused)
+			{
+				MoveAtVelocity(motor_speed);
+			}
+			
 			if (in_auto)
 			{
-				if (timer_count >= wait_time)
+				if (timer_count >= wait_time && (!fwdState || !fwdState_past))
 				{
 					fwd = true;
+					paused = false;
 					if (motor_speed < 0)
 					{
 						motor_speed = motor_speed * -1;
@@ -261,8 +295,22 @@ int main(void)
 				}
 			}
 			
-			else if (!in_auto && !revState && !fwdState && !hmi_fwd_state && !hmi_rev_state)
+			else if (!in_auto)
 			{
+				if (is_jogging)
+				{
+					MoveAtVelocity(motor_speed);
+					if(jog_timer_count >= 500)
+					{
+						is_jogging = false;
+						MoveAtVelocity(0);
+					}
+				} 
+				else
+				{
+					MoveAtVelocity(0);
+				}
+				
 				if (blink_timer_count >= 1000)
 				{
 					stopLight.State(true);
@@ -314,9 +362,9 @@ int main(void)
 	   hmi_rev_state = false;
 	   hmi_stop_state = false;
 	   
-	   fwdState_past = fwdState + hmi_fwd_state;
-	   revState_past = revState + hmi_rev_state;
-	   stopState_past = stopState + hmi_stop_state;
+	   fwdState_past = fwdState;
+	   revState_past = revState;
+	   //stopState_past = stopState;
 	   
 	   if (client.Connected()) 
 	   {
@@ -421,7 +469,7 @@ int main(void)
 									   
 						case 2: //start/stop machine
 						{
-							if ((data_in == 1 || data_in == 0) && !faulted)
+							if ((data_in == 1 || data_in == 0) && !faulted && !was_estop)
 							{
 								running = data_in;
 								UpdateTags();
@@ -474,11 +522,11 @@ int main(void)
 						{
 							if (faulted)
 							{
-								faulted = false;
 								motor.ClearAlerts();
 								motor.ClearFaults(timeout);
 								InitializeMotor();
 								motor.EnableRequest(true);
+								faulted = false;
 								ConnectorUsb.SendLine("reset complete");
 								UpdateTags();
 							}
@@ -537,7 +585,19 @@ int main(void)
 				}
 				EthernetMgr.Refresh();					   
 			}
-	   } 
+	   }
+	   	   
+	   //ConnectorUsb.Send("tag timer count is: ");
+	   //ConnectorUsb.SendLine(tag_timer_count);
+	   if (tag_timer_count >= 500)
+	   {
+		   UpdateTags();
+		   tag_timer_start = Milliseconds();
+	   }
+	   if (was_estop && estop_timer_count >= 1000)
+	   {
+			was_estop = false;
+	   }
 	   
    }
 }
@@ -621,60 +681,59 @@ bool MoveAtVelocity(int32_t velocity)
 
 void UpdateTags()
 {
-	EthernetTcpClient client = server.Available();
+	EthernetTcpClient cli = server.Available();
 	
-	uint8_t current_speed_percent = static_cast<int>(motor.HlfbPercent());
-	client.Send("|speed,");
-	client.Send(current_speed_percent);
-	client.Send("|");
+	uint8_t current_speed_percent = static_cast<int>(motor.HlfbState());
+	cli.Send("|speed,");
+	cli.Send(current_speed_percent);
+	cli.Send("|");
 	
-	client.Send("|estop,");
-	if (!estopSignal.State())
+	cli.Send("|estop,");
+	if (estop_pressed)
 	{
-		client.Send("1");
+		cli.Send("1");
 	}
-	else
+	else if (!estop_pressed)
 	{
-		client.Send("0");
+		cli.Send("0");
 	}
-	client.Send("|");
 		   
-	client.Send("|run,");
+	cli.Send("|run,");
 	if (running)
 	{
-		client.Send("1");
+		cli.Send("1");
+		ConnectorUsb.SendLine("|run,1|");
 	}
-	else
+	else if(!running)
 	{
-		client.Send("0");
+		cli.Send("0");
 	}
-	client.Send("|");
 		   
-	client.Send("|fault,");
+	cli.Send("|fault,");
 	if (faulted)
 	{
-		client.Send("1");
+		cli.Send("1");
 	}
-	else
+	else if(!faulted)
 	{
-		client.Send("0");
+		cli.Send("0");
 	}
-	client.Send("|");
+	cli.Send("|");
 }
 
 void Estopped()
 {
 	motor.MoveStopAbrupt();
-	motor.EnableRequest(false);
-	running = false;
-	fwdLight.State(true);
-	Delay_ms(500);
+	Delay_ms(100);
 	UpdateTags();
-	while(motor.StatusReg().bit.InEStopSensor || !estopSignal.State())
+	while(motor.StatusReg().bit.InEStopSensor || !estopSignal.State() || !pullcordSignal.State())
 	{
 		EthernetMgr.Refresh();
+		running = false;
 		uint32_t current_time = Milliseconds();
 		uint32_t timer_count = current_time - blink_timer_start;
+		uint32_t tag_timer = current_time - tag_timer_start;
+		estop_pressed = true;
 			   
 		if(!stopLight.State() && 1000 <= timer_count)
 		{
@@ -690,7 +749,14 @@ void Estopped()
 			fwdLight.State(false);
 			blink_timer_start = Milliseconds();
 		}
+		
+		if (tag_timer >= 200)
+		{
+			UpdateTags();
+		}
 	}
-	InitializeMotor();
+	estop_pressed = false;
+	was_estop = true;
+	estop_timer_start = Milliseconds();
 	UpdateTags();
 }
