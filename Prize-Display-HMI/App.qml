@@ -19,8 +19,9 @@ ApplicationWindow {
         initialItem: iniITEM
     }
 
+    //navigation buttons on sidebar
     Button {
-        id: button
+        id: home
         x: -11
         y: -12
         width: 80
@@ -34,7 +35,7 @@ ApplicationWindow {
     }
 
     Button {
-        id: button1
+        id: settings
         x: -11
         y: 60
         width: 80
@@ -46,8 +47,10 @@ ApplicationWindow {
             button.enabled = true
         }
     }
-
+    
+    //popups for estop and ethernet warnings
     Item{
+        id: warnings
         focus: true
         property bool ethfault: false
         property bool estopped: false
@@ -108,29 +111,33 @@ ApplicationWindow {
             }
         }
 
+        //open the estop pop up if the estop is pressed
+        //close if it is released
         function estoppedchangevalue(value){
             if(value != undefined){
                 estopped = value
 
-                if(value == 1){
+                if(estopped == 1){
                     estop_error.open()
                 }
 
-                if(value == 0){
+                if(estopped == 0){
                     estop_error.close()
                 }
             }  
         }
 
+        //open the ethernet fault pop up if the connection is broken
+        //close if reconnnected
         function ethfaultchangevalue(value){
             if(value != undefined){
                 ethfault = value
-            
-                if(value == 1){
+
+                if(ethfault == true){
                     conn_error.open()
                 }
 
-                if(value == 0){
+                if(ethfault == false){
                     conn_error.close()
                 }
             }

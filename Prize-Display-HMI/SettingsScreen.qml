@@ -9,6 +9,7 @@ Item {
     width: 800
     height: 480
 
+    //initialize and attatch variables
     property int mspeed: 0
 
     Component.onCompleted: {
@@ -16,6 +17,7 @@ Item {
         focus = true
     }
 
+    //this is the settings page with a slider and a changing tag to show speed percent
     Rectangle{
         anchors.fill: parent
         color: "light gray"
@@ -63,6 +65,7 @@ Item {
         }  
     }
 
+    //function to update mspeed
     function mspeedchangevalue(value){
         if(value != undefined) {
             mspeed = parseInt(value / 255 * 100)

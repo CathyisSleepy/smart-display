@@ -12,6 +12,7 @@ Item {
     focus: true
     Keys.onEscapePressed:_Setting.closeWindow()
 
+    //define all of our varibles
     property int motor_readout: 0
     property bool mfault: false
     property bool estopped: false
@@ -20,6 +21,7 @@ Item {
     property bool ethfault: false
     property bool auto_on: true
 
+    //attach functions to the incoming streamed variables
     Component.onCompleted: {
         _Streaming.FaultSignal.connect(mfaultchangevalue)
         _Streaming.EstopSignal.connect(estoppedchangevalue)
@@ -28,20 +30,30 @@ Item {
         _Streaming.MotorSignal.connect(readoutchangevalue)
         setautolighting()
         setstartstoplighting()
-        _Setting.motorSpeedGet()
+        motor_readout = parseInt(_Setting.motorSpeedGet() / 255 * 100)
         focus = true
     }
 
+    //grab motor speed every second this forces the gui to update
+    Timer {
+        interval: 1000; running: true; repeat: true
+        onTriggered: {
+            _Setting.motorSpeedGet()
+        }
+    }
+
+    //background fill
     Rectangle{
         anchors.fill: parent
         color: "light gray"
         focus: true
         
+        //motor setpoint readout
         Text {
             id: speed_label
             x: 250
             y: 100
-            text: "Motor Readout" 
+            text: "Motorspeed Setpoint" 
             font.pixelSize: 20
         }
     
@@ -62,6 +74,7 @@ Item {
             }
         }
 
+        //warnings that only pop up if relevant (most of the time)
         Text {
             id: eth_fault_warning
             focus: true
@@ -105,6 +118,7 @@ Item {
             color: "green"
         }
 
+        //here are our buttons to stop, start, toggle manual/auto, and to interact with the clearcore
         Button {
             id: stop
             focus: true
@@ -237,9 +251,10 @@ Item {
         }
     }
     
+    //here are our attachted functions to update gui variables
     function readoutchangevalue(value){
         if(value != undefined) {
-            motor_readout = parseInt(value)
+            motor_readout = parseInt(value / 255 * 100)
         }  
     }
     
@@ -269,6 +284,7 @@ Item {
         }
     }
 
+    //these are functions to update the gui state
     function setautolighting(){
         auto_on = _Setting.getAutoState()
 
@@ -284,6 +300,8 @@ Item {
     }
 
     function setstartstoplighting(){
+        running = _Setting.getRunState()
+
         if(running){
                 start.palette.button = "green"
                 stop.palette.button = "dark red"
