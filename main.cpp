@@ -48,7 +48,7 @@ bool paused = false;
 int motor_speed;
 
 //initialize ALL of the timer variables
-uint32_t wait_time  = 9000;
+uint32_t wait_time  = 10000;
 uint32_t press_hold_time = 200;
 uint32_t stop_hold_time = 5000;
 uint32_t timer_start;
@@ -147,7 +147,7 @@ int main(void)
 	   //update button states
 	   fwdState = fwdButton.State();
 	   revState = revButton.State();
-	   stopState = stopButton.State();\
+	   stopState = stopButton.State();
 	   
 	   //update timers
 	   uint32_t current_time = Milliseconds();
@@ -305,7 +305,7 @@ int main(void)
 			if (in_auto && !was_estop)
 			{
 				//if timer has gone past set wait time then return to default forward state
-				if (timer_count >= wait_time && !fwd && (!fwdState || !fwdState_past))
+				if (timer_count >= wait_time && (!fwdState || !fwdState_past))
 				{
 					fwd = true;
 					paused = false;
@@ -417,7 +417,7 @@ int main(void)
 	   //for the press and hold functions
 	   fwdState_past = fwdState;
 	   revState_past = revState;
-	   //stopState_past = stopState;
+	   stopState_past = stopState;
 	   
 	   if (client.Connected()) 
 	   {
@@ -528,7 +528,7 @@ int main(void)
 							//if the machine is in auto, not faulted, running,
 							//and not estopped without reset move the motor at the
 							//updated speed
-							if(running && !faulted && in_auto && !was_estop)
+							if(running && !faulted && in_auto && !was_estop && !paused)
 							{
 								MoveAtVelocity(motor_speed);
 							}
@@ -548,7 +548,7 @@ int main(void)
 							
 							//if in auto and running then set the lights to the appropriate
 							//direction based on fwd bit
-							if (running && in_auto)
+							if (running && in_auto && !paused)
 							{
 								if (fwd)
 								{
