@@ -157,14 +157,11 @@ int main(void)
 	   uint32_t tag_timer_count = current_time - tag_timer_start;
 	   uint32_t estop_timer_count = current_time - estop_timer_start;
 	   uint32_t jog_timer_count = current_time - jog_timer_start;
-	   // Obtain a reference to a connected client with incoming data available.
-	   EthernetTcpClient client = server.Available();
 	   
 	   //if the machine is faulted stop and update tags
 	   if(faulted)
 	   {
 		   running = false;
-		   UpdateTags();
 	   }
 	   
 	   //if the machine is running and has been reset after estop
@@ -387,6 +384,26 @@ int main(void)
 			   }
 		   }
 		   
+		   else if (was_estop)
+		   {
+			   //blink the stop and forward lights every second to
+			   //indicate the fault
+			   if(!stopLight.State() && 1000 <= blink_timer_count)
+			   {
+				   blink_timer_start = Milliseconds();
+				   stopLight.State(true);
+				   revLight.State(false);
+				   fwdLight.State(true);
+			   }
+			   else if(stopLight.State() && 1000 <= blink_timer_count)
+			   {
+				   stopLight.State(false);
+				   revLight.State(false);
+				   fwdLight.State(false);
+				   blink_timer_start = Milliseconds();
+			   }
+		   }
+		   
 		   //if it is not faulted but still not running
 		   else
 		   {
@@ -418,6 +435,10 @@ int main(void)
 	   fwdState_past = fwdState;
 	   revState_past = revState;
 	   stopState_past = stopState;
+	   
+	   EthernetMgr.Refresh();
+	   // Obtain a reference to a connected client with incoming data available.
+	   EthernetTcpClient client = server.Available();
 	   
 	   if (client.Connected()) 
 	   {
@@ -456,6 +477,8 @@ int main(void)
 				//with the start byte received index is 1 and we are looking at the tag			   
 				else if (idex == 1 && recv_in_prog)
 				{
+					ConnectorUsb.Send("data from tag = ");
+					ConnectorUsb.SendLine(data_in);
 					//read the tag and select the right bin to put the attached value (if any) into
 					switch (data_in)
 					{
@@ -501,8 +524,6 @@ int main(void)
 					//look at selected bin and do appropriate actions
 					switch (bin_select)
 					{
-						ConnectorUsb.Send("data from tag = ");
-						ConnectorUsb.SendLine(data_in);
 						case 1: //motor speed
 						{
 							//take the motor speed input from the hmi and map it to min and max
@@ -602,10 +623,8 @@ int main(void)
 							{
 								motor.ClearAlerts();
 								motor.ClearFaults(timeout);
-								InitializeMotor();
-								motor.EnableRequest(true);
 								faulted = false;
-								ConnectorUsb.SendLine("reset complete");
+								motor.EnableRequest(true);
 								UpdateTags();
 							}
 							//otherwise go to next tag
@@ -613,6 +632,7 @@ int main(void)
 							{
 								continue;
 							}
+							ConnectorUsb.SendLine("reset complete");
 						}
 						break;
 						
@@ -669,7 +689,8 @@ int main(void)
 				EthernetMgr.Refresh();	// refresh Ethernet				   
 			}
 	   }
-	   	   
+	   	
+	    EthernetMgr.Refresh();   
 	   //if the tag timer has triggered then update tags to the hmi
 	   if (tag_timer_count >= 500)
 	   {
@@ -710,16 +731,11 @@ void InitializeMotor()
 		while (motor.HlfbState() != MotorDriver::HLFB_ASSERTED)
 		{
 			timeout = Milliseconds();
-			if (timeout - timeout_start >= 20000)
+			if (timeout - timeout_start >= 2000)
 			{
 				faulted = 1;
 				break;
 			}
-			continue;
-		}
-		//connect the estop to the motor wait until complete
-		while (!motor.EStopConnector(CLEARCORE_PIN_DI6))
-		{
 			continue;
 		}
 		ConnectorUsb.SendLine("Motor Ready");
@@ -806,8 +822,6 @@ void Estopped()
 {
 	//stop the motor as abruptly as possible
 	motor.MoveStopAbrupt();
-	//wait for a little to make sure the motor is stopped
-	Delay_ms(100);
 	
 	//while the estop remains pressed the progam will remain in this loop
 	while(motor.StatusReg().bit.InEStopSensor || !estopSignal.State() || !pullcordSignal.State())
@@ -844,7 +858,7 @@ void Estopped()
 		}
 		
 		//if tag timer is done then restart timer
-		if (tag_timer >= 200)
+		if (tag_timer >= 500)
 		{
 			UpdateTags();
 			tag_timer_start = Milliseconds();
