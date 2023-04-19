@@ -80,6 +80,7 @@ class EthHandler():
             #try to send the message
             try:
                 EthHandler.sock.send(msg)
+                print("eth send complete")
             except:
                 #if this fails set the connection to invalid
                 EthHandler.eth_fault = True

@@ -117,11 +117,11 @@ ApplicationWindow {
             if(value != undefined){
                 estopped = value
 
-                if(estopped == 1){
+                if(estopped == true){
                     estop_error.open()
                 }
 
-                if(estopped == 0){
+                if(estopped == false){
                     estop_error.close()
                 }
             }  

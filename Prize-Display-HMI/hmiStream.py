@@ -53,7 +53,7 @@ class Streaming(QThread):
             tag_timer_curr = round(time.time() * 1000) - tag_timer_start
                 
             #try to update tags if it has been longer than 200 miliseconds
-            if tag_timer_curr >= 200:
+            if tag_timer_curr >= 1000:
                 #send commanded in auto <a[val]>, motorspeed <m[val]>, and run state <l[val]>
                 EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_in_auto).encode() + b'>')
                 EthHandler.attemptEthSend(b'<m' + chr(EthHandler.cmd_motor_speed).encode() + b'>')
@@ -63,7 +63,7 @@ class Streaming(QThread):
                 print("tags updated")
 
             #make sure we have a valid connection
-            if (EthHandler.sock is not None) and EthHandler.eth_fault != True:
+            if (EthHandler.sock is not None) and not EthHandler.eth_fault:
                 try:
                     #look for incoming data    
                     data = EthHandler.sock.recv(86).decode()

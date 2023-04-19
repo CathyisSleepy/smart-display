@@ -68,7 +68,9 @@ class Setting(QObject):
     @Slot()
     def ccReset(self):
         #send tag <r> to the clearcore
-        EthHandler.attemptEthSend(b'<r>')
+        h = EthHandler.attemptEthSend(b'<r'+b'>')
+        if h == True:
+            print("sent reset signal")
 
     #send command to put machine in automatic
     @Slot()

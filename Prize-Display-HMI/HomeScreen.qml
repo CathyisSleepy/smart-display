@@ -36,7 +36,7 @@ Item {
 
     //grab motor speed every second this forces the gui to update
     Timer {
-        interval: 1000; running: true; repeat: true
+        interval: 2000; running: true; repeat: true
         onTriggered: {
             _Setting.motorSpeedGet()
         }
