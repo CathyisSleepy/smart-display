@@ -50,6 +50,37 @@ class Setting(QObject):
         #set commanded motor speed to incoming value
         EthHandler.cmd_motor_speed = val
 
+    #update motor speed to clearcore and return the motor speed to the QML script
+    @Slot(result=int)
+    def waitTimeGet(self):
+        #attempt to retrieve the motor speed from speed.pick and update the commanded motor speed
+        try:
+            p = open('waittime.pick', 'rb')
+            EthHandler.cmd_wait_time = pickle.load(p)
+            p.close
+        except:
+            print("load failed")
+        
+        #send the tag "<m[value]>" to the clearcore and return the motor speed to the QML
+        EthHandler.attemptEthSend(b'<w' + chr(EthHandler.cmd_wait_time).encode() + b'>')
+        return int(EthHandler.cmd_wait_time)
+
+    @Slot(int)
+    def waitTimeSet(self, val):
+        #send the motor speed in a format it can read "<m[value]>"
+        EthHandler.attemptEthSend(b'<w' + chr(val).encode() + b'>')
+
+        #attempt to save the value in a file to be accessed later
+        try:
+            p = open('waittime.pick', 'wb')
+            pickle.dump(EthHandler.cmd_wait_time, p)
+            p.close
+        except:
+            print("save failed")
+
+        #set commanded motor speed to incoming value
+        EthHandler.cmd_wait_time = val
+
     #tell clearcore to stop main loop
     @Slot()
     def ccStart(self):
