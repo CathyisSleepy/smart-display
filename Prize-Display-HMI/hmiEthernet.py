@@ -21,6 +21,8 @@ class EthHandler():
     sock = None #socket for connection to clearcore
 
     cmd_in_auto = True #commanded automatic/manual state
+    
+    cmd_wait_time = 10
 
     cmd_running = False #commanded running state
 
