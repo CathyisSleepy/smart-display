@@ -57,6 +57,7 @@ class Streaming(QThread):
                 #send commanded in auto <a[val]>, motorspeed <m[val]>, and run state <l[val]>
                 EthHandler.attemptEthSend(b'<a' + chr(EthHandler.cmd_in_auto).encode() + b'>')
                 EthHandler.attemptEthSend(b'<m' + chr(EthHandler.cmd_motor_speed).encode() + b'>')
+                EthHandler.attemptEthSend(b'<w' + chr(EthHandler.cmd_wait_time).encode() + b'>')
                 EthHandler.attemptEthSend(b'<l' + chr(EthHandler.cmd_running).encode() + b'>')
                 #restart tag timer
                 tag_timer_start = round(time.time() * 1000)
